@@ -45,6 +45,10 @@ impl Vm {
             self.run_op(op, buf, samples);
         }
 
+        for chan in buf.iter_mut() {
+            chan[self.buf_index] = chan[self.pc];
+        }
+
         self.increment()
     }
 
