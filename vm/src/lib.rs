@@ -86,14 +86,18 @@ impl Vm {
     }
 
     fn run_op(&mut self, op: Op, bytecode: &mut [u8], buf: RawBuffer, samples: usize) {
-        let chunk_size = samples / REGISTER_COUNT;
+        let chunk_size_audio = samples / REGISTER_COUNT;
+        let chunk_size_bytecode = bytecode.len() / REGISTER_COUNT;
         match op {
             Op::Copy(i, j) => {
                 for chan in buf.iter_mut() {
-                    let chunk_start = i * chunk_size;
-                    let chunk_end = chunk_start + chunk_size;
-                    chan.copy_within(chunk_start..chunk_end, j * chunk_size);
+                    let chunk_start = i * chunk_size_audio;
+                    let chunk_end = chunk_start + chunk_size_audio;
+                    chan.copy_within(chunk_start..chunk_end, j * chunk_size_audio);
                 }
+                let chunk_start = i * chunk_size_bytecode;
+                let chunk_end = chunk_start + chunk_size_bytecode;
+                bytecode.copy_within(chunk_start..chunk_end, j * chunk_size_bytecode);
             }
             Op::Jump(i) => {
                 self.pc = i;
