@@ -15,8 +15,8 @@ use vm::Vm;
 struct Data {
     params: Arc<VmGlitchParams>,
     code: String,
-    from_vm_buffer: Output<Vec<u8>>,
-    to_vm_buffer: Input<Vec<u8>>,
+    from_vm_buffer: Arc<Mutex<Output<Vec<u8>>>>,
+    to_vm_buffer: Arc<Mutex<Input<Vec<u8>>>>,
     errs: String,
     dirty: Arc<AtomicBool>,
 }
@@ -31,10 +31,17 @@ impl Model for Data {
                         self.errs = "".to_string();
                         let bytecode = lang::assemble::assemble(
                             gtch.iter(),
-                            self.from_vm_buffer.peek_output_buffer().len(),
+                            self.from_vm_buffer
+                                .lock()
+                                .unwrap()
+                                .peek_output_buffer()
+                                .len(),
                         );
-                        self.to_vm_buffer.input_buffer().copy_from_slice(&bytecode);
-                        self.to_vm_buffer.publish();
+                        {
+                            let mut guard = self.to_vm_buffer.lock().unwrap();
+                            guard.input_buffer().copy_from_slice(&bytecode);
+                            guard.publish();
+                        }
                         self.dirty.store(true, Ordering::Release);
                     }
                     Err(errs) => {
@@ -71,14 +78,8 @@ pub(crate) fn create(
         Data {
             params: params.clone(),
             code: "".to_string(),
-            from_vm_buffer: Arc::try_unwrap(from_vm_buffer.clone())
-                .unwrap()
-                .into_inner()
-                .unwrap(),
-            to_vm_buffer: Arc::try_unwrap(to_vm_buffer.clone())
-                .unwrap()
-                .into_inner()
-                .unwrap(),
+            from_vm_buffer: from_vm_buffer.clone(),
+            to_vm_buffer: to_vm_buffer.clone(),
             errs: "".to_string(),
             dirty: dirty.clone(),
         }
