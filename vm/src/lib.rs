@@ -1,4 +1,5 @@
 pub mod op;
+use numquant::linear;
 use op::{Op, Opcode};
 
 pub type RawBuffer<'a, 'b> = &'a mut [&'b mut [f32]];
@@ -42,7 +43,7 @@ impl Vm {
     fn step(&mut self, bytecode: &mut [u8], buf: RawBuffer, samples: usize) {
         let op = self.parse_op(bytecode, REGISTER_COUNT);
         if let Some(op) = op {
-            self.run_op(op, buf, samples);
+            self.run_op(op, bytecode, buf, samples);
         }
 
         for chan in buf.iter_mut() {
@@ -84,18 +85,26 @@ impl Vm {
         None
     }
 
-    fn run_op(&mut self, op: Op, buf: RawBuffer, samples: usize) {
-        let chunk_size = samples/REGISTER_COUNT;
+    fn run_op(&mut self, op: Op, bytecode: &mut [u8], buf: RawBuffer, samples: usize) {
+        let chunk_size = samples / REGISTER_COUNT;
         match op {
             Op::Copy(i, j) => {
                 for chan in buf.iter_mut() {
                     let chunk_start = i * chunk_size;
                     let chunk_end = chunk_start + chunk_size;
-                    chan.copy_within(chunk_start..chunk_end, j*chunk_size);
+                    chan.copy_within(chunk_start..chunk_end, j * chunk_size);
                 }
             }
             Op::Jump(i) => {
                 self.pc = i;
+            }
+            Op::Sample(i) => {
+                let mut sample = 0.0;
+                for chan in buf.iter_mut() {
+                    sample += chan[i];
+                }
+                sample /= buf.len() as f32;
+                bytecode[self.pc] = linear::quantize(sample as f64, -1.0..1.0, 255);
             }
             _ => {}
         }

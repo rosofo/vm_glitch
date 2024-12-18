@@ -33,21 +33,33 @@ impl<L: Lens<Target = Buf>> View for AnalyzerView<L> {
         let mut guard = bytecode_ref.lock().unwrap();
         let bytecode = guard.read();
 
+        let bit_scale = 4.0;
+        let byte_scale = 2.0 * bit_scale;
         let coords = (0..bytecode.len()).map(|i| {
-            let x = i % 16;
-            let y = i / 16;
+            let x = i % 32;
+            let y = i / 32;
             (
-                x as f32 * 30.0 + bounds.x,
-                y as f32 * 30.0 + bounds.y,
+                x as f32 * 2.0 * (byte_scale + 1.0) + bounds.x,
+                y as f32 * 2.0 * (byte_scale + 1.0) + bounds.y,
                 bytecode[i],
             )
         });
         for (x, y, byte) in coords {
-            let mut path = vg::Path::new();
-            path.rect(x, y, 10.0, 10.0);
-            let mut paint = vg::Paint::default();
-            paint.set_color(Color::rgb(byte, byte, byte));
-            canvas.fill_path(&path, &paint);
+            for i in 0..8 {
+                let x = x + bit_scale * ((i % 4) as f32);
+                let y = y + bit_scale * ((i / 4) as f32);
+                let bit = (byte >> i) & 1;
+                let color = if bit == 1 {
+                    Color::rgb(255, 255, 255)
+                } else {
+                    Color::rgb(0, 0, 0)
+                };
+                let mut path = vg::Path::new();
+                path.rect(x, y, bit_scale, bit_scale);
+                let mut paint = vg::Paint::default();
+                paint.set_color(color);
+                canvas.fill_path(&path, &paint);
+            }
         }
     }
 }
