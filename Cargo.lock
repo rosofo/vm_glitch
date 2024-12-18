@@ -2516,6 +2516,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "numquant"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "54809e43d79aa532432c0d03c6adf62fdd96f2e152b90cef6cd9a316c3da4d99"
+
+[[package]]
 name = "objc"
 version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3977,6 +3983,7 @@ dependencies = [
 name = "vm"
 version = "0.1.0"
 dependencies = [
+ "numquant",
  "proptest",
  "proptest-derive",
 ]
