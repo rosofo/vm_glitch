@@ -3,23 +3,22 @@ use nih_plug::prelude::{util, Editor};
 use nih_plug_vizia::vizia::prelude::*;
 use nih_plug_vizia::widgets::*;
 use nih_plug_vizia::{assets, create_vizia_editor, ViziaState, ViziaTheming};
-use std::fmt::LowerHex;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 
-use crate::double_buffer::DoubleBuffer;
 use crate::VmGlitchParams;
 use lang::*;
+use triple_buffer::{Input, Output};
 use vm::Vm;
 
 #[derive(Lens)]
 struct Data {
     params: Arc<VmGlitchParams>,
     code: String,
-    from_vm_buffer: Arc<DoubleBuffer>,
-    to_vm_buffer: Arc<DoubleBuffer>,
+    from_vm_buffer: Output<Vec<u8>>,
+    to_vm_buffer: Input<Vec<u8>>,
     errs: String,
+    dirty: Arc<AtomicBool>,
 }
 
 impl Model for Data {
@@ -30,10 +29,13 @@ impl Model for Data {
                 match lang::parse::parse(&self.code) {
                     Ok(gtch) => {
                         self.errs = "".to_string();
-                        let bytecode =
-                            lang::assemble::assemble(gtch.iter(), self.from_vm_buffer.len());
-                        self.to_vm_buffer.write_buffer().copy_from_slice(&bytecode);
-                        self.to_vm_buffer.swap();
+                        let bytecode = lang::assemble::assemble(
+                            gtch.iter(),
+                            self.from_vm_buffer.peek_output_buffer().len(),
+                        );
+                        self.to_vm_buffer.input_buffer().copy_from_slice(&bytecode);
+                        self.to_vm_buffer.publish();
+                        self.dirty.store(true, Ordering::Release);
                     }
                     Err(errs) => {
                         self.errs = format!("{:#?}", errs);
@@ -56,9 +58,12 @@ enum AppEvent {
 pub(crate) fn create(
     params: Arc<VmGlitchParams>,
     editor_state: Arc<ViziaState>,
-    from_vm_buffer: Arc<DoubleBuffer>,
-    to_vm_buffer: Arc<DoubleBuffer>,
+    from_vm_buffer: Output<Vec<u8>>,
+    to_vm_buffer: Input<Vec<u8>>,
+    dirty: Arc<AtomicBool>,
 ) -> Option<Box<dyn Editor>> {
+    let from_vm_buffer = Arc::new(Mutex::new(from_vm_buffer));
+    let to_vm_buffer = Arc::new(Mutex::new(to_vm_buffer));
     create_vizia_editor(editor_state, ViziaTheming::Custom, move |cx, _| {
         assets::register_noto_sans_light(cx);
         assets::register_noto_sans_thin(cx);
@@ -66,9 +71,16 @@ pub(crate) fn create(
         Data {
             params: params.clone(),
             code: "".to_string(),
-            from_vm_buffer: from_vm_buffer.clone(),
-            to_vm_buffer: to_vm_buffer.clone(),
+            from_vm_buffer: Arc::try_unwrap(from_vm_buffer.clone())
+                .unwrap()
+                .into_inner()
+                .unwrap(),
+            to_vm_buffer: Arc::try_unwrap(to_vm_buffer.clone())
+                .unwrap()
+                .into_inner()
+                .unwrap(),
             errs: "".to_string(),
+            dirty: dirty.clone(),
         }
         .build(cx);
 

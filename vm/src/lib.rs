@@ -5,7 +5,6 @@ pub type RawBuffer<'a, 'b> = &'a mut [&'b mut [f32]];
 
 #[derive(Clone, Debug)]
 pub struct Vm {
-    pub bytecode: Vec<u8>,
     /// The maximum number of instructions to run.
     ///
     /// When this is reached the VM will halt early to avoid ever blocking/hanging the audio thread.
@@ -29,21 +28,21 @@ impl Vm {
     /// Run the Vm's current bytecode.
     ///
     /// Modifies the audio buffer and the bytecode simultaneously.
-    pub fn run(&mut self, buf: RawBuffer, samples: usize) {
+    pub fn run(&mut self, bytecode: &mut [u8], buf: RawBuffer, samples: usize) {
         self.reset();
-        while self.index < self.bytecode.len()
+        while self.index < bytecode.len()
             && self.buf_index < samples
             && self.total_for_run <= self.max_instructions
         {
-            self.step(buf, samples);
+            self.step(bytecode, buf, samples);
         }
     }
 
-    fn step(&mut self, buf: RawBuffer, samples: usize) {
-        let byte = self.bytecode[self.index];
-        let op = self.parse_op(byte, samples);
+    fn step(&mut self, bytecode: &mut [u8], buf: RawBuffer, samples: usize) {
+        let byte = bytecode[self.index];
+        let op = self.parse_op(bytecode, byte, samples);
         if let Some(op) = op {
-            self.run_op(op, buf);
+            self.run_op(bytecode, op, buf);
         }
 
         for chan in buf.iter_mut() {
@@ -53,19 +52,19 @@ impl Vm {
     }
 
     /// Parses the current [Op] and its args and verifies that the operation is possible
-    fn parse_op(&mut self, byte: u8, sample_len: usize) -> Option<Op> {
-        let bytecode_len = self.bytecode.len();
+    fn parse_op(&mut self, bytecode: &mut [u8], byte: u8, sample_len: usize) -> Option<Op> {
+        let bytecode_len = bytecode.len();
         if byte == Opcode::Copy as u8 && self.index + 2 < bytecode_len {
             self.index += 1;
-            let i = self.bytecode[self.index] as usize;
+            let i = bytecode[self.index] as usize;
             self.index += 1;
-            let j = self.bytecode[self.index] as usize;
+            let j = bytecode[self.index] as usize;
 
             if i < bytecode_len && i < sample_len && j < bytecode_len && j < sample_len {
                 return Some(Op::Copy(i, j));
             }
         } else if self.index + 1 < bytecode_len {
-            let i = self.bytecode[self.index + 1] as usize;
+            let i = bytecode[self.index + 1] as usize;
 
             if i < bytecode_len && i < sample_len {
                 if byte == Opcode::Jump as u8 {
@@ -83,10 +82,10 @@ impl Vm {
         None
     }
 
-    fn run_op(&mut self, op: Op, buf: RawBuffer) {
+    fn run_op(&mut self, bytecode: &mut [u8], op: Op, buf: RawBuffer) {
         match op {
             Op::Copy(i, j) => {
-                self.bytecode[j] = self.bytecode[i];
+                bytecode[j] = bytecode[i];
                 for chan in buf.iter_mut() {
                     chan[j] = chan[i];
                 }
@@ -115,7 +114,6 @@ impl Vm {
 impl Default for Vm {
     fn default() -> Self {
         Self {
-            bytecode: vec![0u8; 512],
             max_instructions: 512,
             buf_index: 0,
             index: 0,
@@ -133,14 +131,13 @@ mod tests {
     proptest! {
         #[test]
         fn test_never_panics(
-            bytecode in prop::collection::vec(prop::bits::u8::ANY, 512),
+            mut bytecode in prop::collection::vec(prop::bits::u8::ANY, 512),
             mut buf in prop::collection::vec(prop::collection::vec(-1.0..1.0f32, 512), 2)
         ) {
             let mut buf_ = buf.iter_mut().map(|s| &mut s[..]).collect::<Vec<_>>();
             let mut vm = Vm::default();
-            vm.bytecode = bytecode;
             for _ in 0..513 {
-                vm.run(buf_.as_mut_slice(), 512);
+                vm.run(&mut bytecode, buf_.as_mut_slice(), 512);
             }
         }
     }
@@ -149,12 +146,10 @@ mod tests {
     fn test_jumping() {
         let mut buf = [-1.0f32, 0.2, 0.4, -0.3];
         let mut vm = Vm::default();
-        let bytecode = vec![Opcode::Jump as u8, 2, 0, 0];
-        vm.bytecode = bytecode.clone();
-        vm.run(&mut [&mut buf], 4);
+        let mut bytecode = vec![Opcode::Jump as u8, 2, 0, 0];
+        vm.step(&mut bytecode, &mut [&mut buf], 4);
 
-        assert_eq!(bytecode, vm.bytecode);
-        assert_eq!(vm.index, 4); // bounds check fails at 4 and it returns
+        assert_eq!(vm.index, 2); // bounds check fails at 4 and it returns
     }
 
     proptest! {
@@ -164,12 +159,12 @@ mod tests {
             mut buf in prop::collection::vec(prop::collection::vec(-1.0..1.0f32, 512), 2)
     ) {
         bytecode.insert(0,Opcode::Copy as u8);
+        let orig = bytecode.clone();
         let mut buf_ = buf.iter_mut().map(|s| &mut s[..]).collect::<Vec<_>>();
         let mut vm = Vm::default();
-        vm.bytecode = bytecode.clone();
-        vm.step(&mut buf_[..], 512);
+        vm.step(&mut bytecode, &mut buf_[..], 512);
 
-        let diff_bytes = bytecode.iter().zip(vm.bytecode.iter()).filter(|(a, b)| a != b).count();
+        let diff_bytes = bytecode.iter().zip(orig.iter()).filter(|(a, b)| a != b).count();
         assert!(diff_bytes == 0 || diff_bytes == 1);
     }
 
@@ -178,13 +173,13 @@ mod tests {
             mut bytecode in prop::collection::vec(0u8..1, 511),
             mut buf in prop::collection::vec(prop::collection::vec(-1.0..1.0f32, 512), 2)
     ) {
-        let mut buf_ = buf.clone();
+        let orig = bytecode.clone();
+        let buf_ = buf.clone();
         let mut buf_slice = buf.iter_mut().map(|s| &mut s[..]).collect::<Vec<_>>();
         let mut vm = Vm::default();
-        vm.bytecode = bytecode.clone();
-        vm.step(&mut buf_slice[..], 512);
+        vm.step(&mut bytecode, &mut buf_slice[..], 512);
 
-        assert_eq!(bytecode, vm.bytecode);
+        assert_eq!(bytecode, orig);
         assert_eq!(buf, buf_);
     }
 
