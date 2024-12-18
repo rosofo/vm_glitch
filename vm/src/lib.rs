@@ -3,6 +3,9 @@ use op::{Op, Opcode};
 
 pub type RawBuffer<'a, 'b> = &'a mut [&'b mut [f32]];
 
+// TODO: Make this a fun resolution slider
+const REGISTER_COUNT: usize = 16;
+
 #[derive(Clone, Debug)]
 pub struct Vm {
     /// The maximum number of instructions to run.
@@ -15,10 +18,8 @@ pub struct Vm {
     /// This is incremented after each instruction and resets to 0 after a run.
     ///
     /// Can be modified by an [Op::Jump]
-    index: usize,
+    pc: usize,
     /// The monotonically increasing index into the audio buffer as we run through instructions
-    ///
-    /// TODO this is hella confusing, clarify semantics
     buf_index: usize,
     /// The total instructions/samples processed. Resets to 0 after each run.
     total_for_run: usize,
@@ -30,7 +31,7 @@ impl Vm {
     /// Modifies the audio buffer and the bytecode simultaneously.
     pub fn run(&mut self, bytecode: &mut [u8], buf: RawBuffer, samples: usize) {
         self.reset();
-        while self.index < bytecode.len()
+        while self.pc < bytecode.len()
             && self.buf_index < samples
             && self.total_for_run <= self.max_instructions
         {
@@ -39,42 +40,43 @@ impl Vm {
     }
 
     fn step(&mut self, bytecode: &mut [u8], buf: RawBuffer, samples: usize) {
-        let byte = bytecode[self.index];
-        let op = self.parse_op(bytecode, byte, samples);
+        let op = self.parse_op(bytecode, REGISTER_COUNT);
         if let Some(op) = op {
-            self.run_op(bytecode, op, buf);
+            self.run_op(op, buf, samples);
         }
 
         for chan in buf.iter_mut() {
-            chan[self.buf_index] = chan[self.index];
+            chan[self.buf_index] = chan[self.pc];
         }
+
         self.increment()
     }
 
-    /// Parses the current [Op] and its args and verifies that the operation is possible
-    fn parse_op(&mut self, bytecode: &mut [u8], byte: u8, sample_len: usize) -> Option<Op> {
+    /// Parses the current [Op] and its args
+    fn parse_op(&mut self, bytecode: &mut [u8], registers: usize) -> Option<Op> {
+        let byte = bytecode[self.pc];
         let bytecode_len = bytecode.len();
-        if byte == Opcode::Copy as u8 && self.index + 2 < bytecode_len {
-            self.index += 1;
-            let i = bytecode[self.index] as usize;
-            self.index += 1;
-            let j = bytecode[self.index] as usize;
+        if byte == Opcode::Copy as u8 && self.pc + 2 < bytecode_len {
+            self.pc += 1;
+            let i = bytecode[self.pc] as usize;
+            self.pc += 1;
+            let j = bytecode[self.pc] as usize;
 
-            if i < bytecode_len && i < sample_len && j < bytecode_len && j < sample_len {
+            if i < registers && j < registers {
                 return Some(Op::Copy(i, j));
             }
-        } else if self.index + 1 < bytecode_len {
-            let i = bytecode[self.index + 1] as usize;
+        } else if self.pc + 1 < bytecode_len {
+            let i = bytecode[self.pc + 1] as usize;
 
-            if i < bytecode_len && i < sample_len {
+            if i < bytecode_len {
                 if byte == Opcode::Jump as u8 {
-                    self.index += 1;
+                    self.pc += 1;
                     return Some(Op::Jump(i));
                 } else if byte == Opcode::Flip as u8 {
-                    self.index += 1;
+                    self.pc += 1;
                     return Some(Op::Flip(i));
                 } else if byte == Opcode::Sample as u8 {
-                    self.index += 1;
+                    self.pc += 1;
                     return Some(Op::Sample(i));
                 }
             }
@@ -82,30 +84,32 @@ impl Vm {
         None
     }
 
-    fn run_op(&mut self, bytecode: &mut [u8], op: Op, buf: RawBuffer) {
+    fn run_op(&mut self, op: Op, buf: RawBuffer, samples: usize) {
+        let chunk_size = samples/REGISTER_COUNT;
         match op {
             Op::Copy(i, j) => {
-                bytecode[j] = bytecode[i];
                 for chan in buf.iter_mut() {
-                    chan[j] = chan[i];
+                    let chunk_start = i * chunk_size;
+                    let chunk_end = chunk_start + chunk_size;
+                    chan.copy_within(chunk_start..chunk_end, j*chunk_size);
                 }
             }
             Op::Jump(i) => {
-                self.index = i;
+                self.pc = i;
             }
             _ => {}
         }
     }
 
     fn increment(&mut self) {
-        self.index += 1;
+        self.pc += 1;
         self.total_for_run += 1;
         self.buf_index += 1;
     }
 
     /// Prepare for the next run
     fn reset(&mut self) {
-        self.index = 0;
+        self.pc = 0;
         self.total_for_run = 0;
         self.buf_index = 0;
     }
@@ -116,7 +120,7 @@ impl Default for Vm {
         Self {
             max_instructions: 512,
             buf_index: 0,
-            index: 0,
+            pc: 0,
             total_for_run: 0,
         }
     }
@@ -149,7 +153,7 @@ mod tests {
         let mut bytecode = vec![Opcode::Jump as u8, 2, 0, 0];
         vm.step(&mut bytecode, &mut [&mut buf], 4);
 
-        assert_eq!(vm.index, 2); // bounds check fails at 4 and it returns
+        assert_eq!(vm.pc, 3);
     }
 
     proptest! {
