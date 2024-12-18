@@ -1,20 +1,17 @@
-use std::ops::Range;
-
 use ariadne::{Color, Label, Report, ReportKind, Source};
-use chumsky::{combinator::SeparatedBy, prelude::*};
+use chumsky::prelude::*;
 
 #[derive(Clone, Debug)]
 pub enum Gtch {
-    Copy(Range<usize>, usize),
+    Copy(usize, usize),
     Jump(usize),
     Sample(usize),
 }
 
 fn parser<'a>() -> impl Parser<'a, &'a str, Vec<Gtch>, extra::Err<Rich<'a, char>>> {
-    let range = text::int(10).then_ignore(just(",")).then(text::int(10));
-    let copy = range.then_ignore(just(">")).then(text::int(10)).map(
-        |((a1, a2), b): ((&str, &str), &str)| {
-            Gtch::Copy(a1.parse().unwrap()..a2.parse().unwrap(), b.parse().unwrap())
+    let copy = text::int(10).then_ignore(just(">")).then(text::int(10)).map(
+        |(a1, a2): (&str, &str)| {
+            Gtch::Copy(a1.parse().unwrap(), a2.parse().unwrap())
         },
     );
 
@@ -52,7 +49,7 @@ mod tests {
 
     #[test]
     fn test_parsing() {
-        parse("1,50>25");
-        parse(".2 1,50>25");
+        parse("1>25");
+        parse(".2 50>25");
     }
 }
