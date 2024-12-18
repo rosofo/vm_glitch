@@ -60,31 +60,29 @@ impl Vm {
 
     /// Parses the current [Op] and its args
     fn parse_op(&mut self, bytecode: &mut [u8], registers: usize) -> Option<Op> {
-        let byte = bytecode[self.pc];
-        let bytecode_len = bytecode.len();
-        if byte == Opcode::Copy as u8 && self.pc + 2 < bytecode_len {
+        let byte = *bytecode.get(self.pc)?;
+        if byte == Opcode::Copy as u8 || byte == Opcode::Swap as u8 {
+            let i = *bytecode.get(self.pc + 1)? as usize;
             self.pc += 1;
-            let i = bytecode[self.pc] as usize;
+            let j = *bytecode.get(self.pc + 1)? as usize;
             self.pc += 1;
-            let j = bytecode[self.pc] as usize;
+            
+            if i >= registers || j >= registers { return None; }
 
-            if i < registers && j < registers {
+            if byte == Opcode::Swap as u8 {
+                return Some(Op::Swap(i, j));
+            } else {
                 return Some(Op::Copy(i, j));
             }
-        } else if self.pc + 1 < bytecode_len {
-            let i = bytecode[self.pc + 1] as usize;
-
-            if i < bytecode_len {
-                if byte == Opcode::Jump as u8 {
-                    self.pc += 1;
-                    return Some(Op::Jump(i));
-                } else if byte == Opcode::Flip as u8 {
-                    self.pc += 1;
-                    return Some(Op::Flip(i));
-                } else if byte == Opcode::Sample as u8 {
-                    self.pc += 1;
-                    return Some(Op::Sample(i));
-                }
+        } else {
+            let i = *bytecode.get(self.pc + 1)? as usize;
+            self.pc += 1;
+            if byte == Opcode::Jump as u8 {
+                return Some(Op::Jump(i));
+            } else if byte == Opcode::Flip as u8 {
+                return Some(Op::Flip(i));
+            } else if byte == Opcode::Sample as u8 {
+                return Some(Op::Sample(i));
             }
         }
         None
