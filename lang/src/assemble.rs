@@ -19,5 +19,6 @@ pub fn assemble<'a>(gtch: impl IntoIterator<Item = &'a Gtch>, bytecode_size: usi
             }
         })
         .pad_using(bytecode_size, |_| 0)
+        .take(bytecode_size)
         .collect_vec()
 }

@@ -1,11 +1,13 @@
 use atomic_float::AtomicF32;
 use nih_plug::prelude::{util, Editor};
+use nih_plug_vizia::vizia::prelude::Color;
 use nih_plug_vizia::vizia::prelude::*;
 use nih_plug_vizia::widgets::*;
 use nih_plug_vizia::{assets, create_vizia_editor, ViziaState, ViziaTheming};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
+use crate::analyzer::AnalyzerView;
 use crate::VmGlitchParams;
 use lang::*;
 use triple_buffer::{Input, Output};
@@ -69,6 +71,7 @@ pub(crate) fn create(
     to_vm_buffer: Input<Vec<u8>>,
     dirty: Arc<AtomicBool>,
 ) -> Option<Box<dyn Editor>> {
+    // need these to be Arc<Mutex<...>> only for the UI thread, there's no blocking from the audio thread.
     let from_vm_buffer = Arc::new(Mutex::new(from_vm_buffer));
     let to_vm_buffer = Arc::new(Mutex::new(to_vm_buffer));
     create_vizia_editor(editor_state, ViziaTheming::Custom, move |cx, _| {
@@ -98,6 +101,8 @@ pub(crate) fn create(
                 .on_edit(|cx, s| cx.emit(AppEvent::Edit(s)))
                 .min_width(Pixels(300.0));
             nih_plug_vizia::vizia::views::Label::new(cx, Data::errs).width(Pixels(300.0));
+
+            AnalyzerView::new(cx, Data::from_vm_buffer);
         })
         .row_between(Pixels(0.0))
         .child_left(Stretch(1.0))
