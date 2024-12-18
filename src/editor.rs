@@ -8,7 +8,6 @@ use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use crate::double_buffer::DoubleBuffer;
 use crate::VmGlitchParams;
 use lang::*;
 use vm::Vm;
@@ -16,9 +15,9 @@ use vm::Vm;
 #[derive(Lens)]
 struct Data {
     params: Arc<VmGlitchParams>,
+    audio_vm: Arc<Mutex<Vm>>,
     code: String,
-    from_vm_buffer: Arc<DoubleBuffer>,
-    to_vm_buffer: Arc<DoubleBuffer>,
+    bytecode_size: usize,
     errs: String,
 }
 
@@ -30,9 +29,13 @@ impl Model for Data {
                 match lang::parse::parse(&self.code) {
                     Ok(gtch) => {
                         self.errs = "".to_string();
-                        let bytecode =
-                            lang::assemble::assemble(gtch.iter(), self.from_vm_buffer.len());
-                        self.to_vm_buffer.write_buffer().copy_from_slice(&bytecode);
+                        let bytecode = lang::assemble::assemble(gtch.iter(), self.bytecode_size);
+                        let mut guard = self
+                            .audio_vm
+                            .lock()
+                            .expect("failed to lock to push bytecode change");
+
+                        guard.bytecode.copy_from_slice(&bytecode);
                     }
                     Err(errs) => {
                         self.errs = format!("{:#?}", errs);
@@ -55,8 +58,8 @@ enum AppEvent {
 pub(crate) fn create(
     params: Arc<VmGlitchParams>,
     editor_state: Arc<ViziaState>,
-    from_vm_buffer: Arc<DoubleBuffer>,
-    to_vm_buffer: Arc<DoubleBuffer>,
+    vm: Arc<Mutex<Vm>>,
+    bytecode_size: usize,
 ) -> Option<Box<dyn Editor>> {
     create_vizia_editor(editor_state, ViziaTheming::Custom, move |cx, _| {
         assets::register_noto_sans_light(cx);
@@ -64,9 +67,9 @@ pub(crate) fn create(
 
         Data {
             params: params.clone(),
+            audio_vm: vm.clone(),
             code: "".to_string(),
-            from_vm_buffer: from_vm_buffer.clone(),
-            to_vm_buffer: to_vm_buffer.clone(),
+            bytecode_size,
             errs: "".to_string(),
         }
         .build(cx);

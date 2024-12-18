@@ -1,6 +1,4 @@
-mod double_buffer;
 mod editor;
-use double_buffer::DoubleBuffer;
 use nih_plug::{prelude::*, wrapper::standalone};
 use nih_plug_vizia::ViziaState;
 use std::sync::{Arc, Mutex};
@@ -12,9 +10,7 @@ use vm::Vm;
 
 pub struct VmGlitch {
     params: Arc<VmGlitchParams>,
-    vm: Vm,
-    to_ui_buffer: Arc<DoubleBuffer>,
-    from_ui_buffer: Arc<DoubleBuffer>,
+    vm: Arc<Mutex<Vm>>, // TODO make sure this won't have contention with UI thread
 }
 
 #[derive(Params)]
@@ -34,9 +30,7 @@ impl Default for VmGlitch {
     fn default() -> Self {
         Self {
             params: Arc::new(VmGlitchParams::default()),
-            vm: Vm::default(),
-            to_ui_buffer: Arc::new(DoubleBuffer::new(512)),
-            from_ui_buffer: Arc::new(DoubleBuffer::new(512)),
+            vm: Arc::new(Mutex::new(Vm::default())),
         }
     }
 }
@@ -139,12 +133,9 @@ impl Plugin for VmGlitch {
     ) -> ProcessStatus {
         let samples = buffer.samples();
         self.vm
-            .bytecode
-            .copy_from_slice(self.from_ui_buffer.read_buffer().as_slice());
-        self.vm.run(buffer.as_slice(), samples);
-        self.to_ui_buffer
-            .write_buffer()
-            .copy_from_slice(self.vm.bytecode.as_slice());
+            .lock()
+            .expect("something very bad happened  while trying to lock the mutex!")
+            .run(buffer.as_slice(), samples);
 
         ProcessStatus::Normal
     }
@@ -153,8 +144,12 @@ impl Plugin for VmGlitch {
         editor::create(
             self.params.clone(),
             self.params.editor_state.clone(),
-            self.from_ui_buffer.clone(),
-            self.to_ui_buffer.clone(),
+            self.vm.clone(),
+            self.vm
+                .lock()
+                .expect("couldn't lock to create editor")
+                .bytecode
+                .len(),
         )
     }
 }
