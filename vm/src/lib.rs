@@ -31,7 +31,10 @@ impl Vm {
     /// Modifies the audio buffer and the bytecode simultaneously.
     pub fn run(&mut self, buf: RawBuffer, samples: usize) {
         self.reset();
-        while self.index < self.bytecode.len() && self.total_for_run <= self.max_instructions {
+        while self.index < self.bytecode.len()
+            && self.buf_index < samples
+            && self.total_for_run <= self.max_instructions
+        {
             self.step(buf, samples);
         }
     }
@@ -62,15 +65,17 @@ impl Vm {
                 return Some(Op::Copy(i, j));
             }
         } else if self.index + 1 < bytecode_len {
-            self.index += 1;
-            let i = self.bytecode[self.index] as usize;
+            let i = self.bytecode[self.index + 1] as usize;
 
             if i < bytecode_len && i < sample_len {
                 if byte == Opcode::Jump as u8 {
+                    self.index += 1;
                     return Some(Op::Jump(i));
                 } else if byte == Opcode::Flip as u8 {
+                    self.index += 1;
                     return Some(Op::Flip(i));
                 } else if byte == Opcode::Sample as u8 {
+                    self.index += 1;
                     return Some(Op::Sample(i));
                 }
             }
@@ -166,6 +171,21 @@ mod tests {
 
         let diff_bytes = bytecode.iter().zip(vm.bytecode.iter()).filter(|(a, b)| a != b).count();
         assert!(diff_bytes == 0 || diff_bytes == 1);
+    }
+
+    #[test]
+    fn test_noops_dont_change_bytecode_or_buffer(
+            mut bytecode in prop::collection::vec(0u8..1, 511),
+            mut buf in prop::collection::vec(prop::collection::vec(-1.0..1.0f32, 512), 2)
+    ) {
+        let mut buf_ = buf.clone();
+        let mut buf_slice = buf.iter_mut().map(|s| &mut s[..]).collect::<Vec<_>>();
+        let mut vm = Vm::default();
+        vm.bytecode = bytecode.clone();
+        vm.step(&mut buf_slice[..], 512);
+
+        assert_eq!(bytecode, vm.bytecode);
+        assert_eq!(buf, buf_);
     }
 
     }
