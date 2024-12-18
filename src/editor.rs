@@ -33,6 +33,7 @@ impl Model for Data {
                         let bytecode =
                             lang::assemble::assemble(gtch.iter(), self.from_vm_buffer.len());
                         self.to_vm_buffer.write_buffer().copy_from_slice(&bytecode);
+                        self.to_vm_buffer.swap();
                     }
                     Err(errs) => {
                         self.errs = format!("{:#?}", errs);
@@ -80,7 +81,9 @@ pub(crate) fn create(
                 .child_top(Stretch(1.0))
                 .child_bottom(Pixels(0.0));
 
-            Textbox::new(cx, Data::code).on_edit(|cx, s| cx.emit(AppEvent::Edit(s)));
+            Textbox::new(cx, Data::code)
+                .on_edit(|cx, s| cx.emit(AppEvent::Edit(s)))
+                .min_width(Pixels(300.0));
             nih_plug_vizia::vizia::views::Label::new(cx, Data::errs).width(Pixels(300.0));
         })
         .row_between(Pixels(0.0))

@@ -145,6 +145,7 @@ impl Plugin for VmGlitch {
         self.to_ui_buffer
             .write_buffer()
             .copy_from_slice(self.vm.bytecode.as_slice());
+        self.to_ui_buffer.swap();
 
         ProcessStatus::Normal
     }
