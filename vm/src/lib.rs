@@ -2,7 +2,7 @@ pub mod op;
 use numquant::linear;
 use op::{Op, Opcode};
 
-pub type RawBuffer<'a, 'b> = &'a mut [&'b mut [f32]];
+pub type RawBuffer<'a> = &'a mut [Vec<f32>];
 
 // TODO: Make this a fun resolution slider
 const REGISTER_COUNT: usize = 16;
@@ -151,20 +151,19 @@ mod tests {
             mut bytecode in prop::collection::vec(prop::bits::u8::ANY, 512),
             mut buf in prop::collection::vec(prop::collection::vec(-1.0..1.0f32, 512), 2)
         ) {
-            let mut buf_ = buf.iter_mut().map(|s| &mut s[..]).collect::<Vec<_>>();
             let mut vm = Vm::default();
             for _ in 0..513 {
-                vm.run(&mut bytecode, buf_.as_mut_slice(), 512);
+                vm.run(&mut bytecode, &mut buf, 512);
             }
         }
     }
 
     #[test]
     fn test_jumping() {
-        let mut buf = [-1.0f32, 0.2, 0.4, -0.3];
+        let buf = vec![-1.0f32, 0.2, 0.4, -0.3];
         let mut vm = Vm::default();
         let mut bytecode = vec![Opcode::Jump as u8, 2, 0, 0];
-        vm.step(&mut bytecode, &mut [&mut buf], 4);
+        vm.step(&mut bytecode, &mut [buf], 4);
 
         assert_eq!(vm.pc, 3);
     }
@@ -178,9 +177,8 @@ mod tests {
     ) {
         let orig = bytecode.clone();
         let buf_ = buf.clone();
-        let mut buf_slice = buf.iter_mut().map(|s| &mut s[..]).collect::<Vec<_>>();
         let mut vm = Vm::default();
-        vm.step(&mut bytecode, &mut buf_slice[..], 512);
+        vm.step(&mut bytecode, &mut buf, 512);
 
         assert_eq!(bytecode, orig);
         assert_eq!(buf, buf_);
