@@ -20,6 +20,17 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y libasound2-dev libgl-dev libjack-dev libx11-xcb-dev  libxcb1-dev libxcb-dri2-0-dev libxcb-icccm4-dev libxcursor-dev libxkbcommon-dev libxcb-shape0-dev libxcb-xfixes0-dev
+    - name: Cache
+      uses: actions/cache@v4.2.0
+      with:
+        # A list of files, directories, and wildcard patterns to cache and restore
+        path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+        # An explicit key for restoring and saving the cache
+        key: cache        
     - name: Build
       run: cargo build --verbose
     - name: Run tests
