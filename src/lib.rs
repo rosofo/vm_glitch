@@ -1,6 +1,7 @@
 mod analyzer;
 mod delay_buffer;
 mod editor;
+use delay_buffer::DelayBuffer;
 use nih_plug::prelude::*;
 use nih_plug_vizia::ViziaState;
 use std::{
@@ -23,6 +24,7 @@ pub struct VmGlitch {
     to_ui_buffer: (Input<Vec<u8>>, Option<Output<Vec<u8>>>),
     from_ui_buffer: (Option<Input<Vec<u8>>>, Output<Vec<u8>>),
     dirty: Arc<AtomicBool>,
+    delay_buffer: DelayBuffer,
 }
 
 #[derive(Params)]
@@ -49,6 +51,8 @@ impl Default for VmGlitch {
             dirty: Arc::new(AtomicBool::new(false)),
             to_ui_buffer: (to_ui.0, Some(to_ui.1)),
             from_ui_buffer: (Some(from_ui.0), from_ui.1),
+            // ??? use audio buffer * 2, which is dynamic ofc
+            delay_buffer: DelayBuffer::new(1024),
         }
     }
 }
@@ -163,9 +167,13 @@ impl Plugin for VmGlitch {
                 .input_buffer()
                 .copy_from_slice(updated_bytecode.as_slice());
         }
+
+        self.delay_buffer.copy_to_back();
+        self.delay_buffer.ingest_audio(buffer.as_slice());
+
         self.vm.run(
             self.to_ui_buffer.0.input_buffer(), // stage updates for the UI thread without publishing yet
-            buffer.as_slice(),
+            self.delay_buffer.as_mut_slice(),
             samples,
         );
         self.to_ui_buffer.0.publish();

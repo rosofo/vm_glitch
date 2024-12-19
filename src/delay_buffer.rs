@@ -3,6 +3,12 @@ pub struct DelayBuffer {
 }
 
 impl DelayBuffer {
+    pub fn new(len: usize) -> Self {
+        Self {
+            buffer: vec![vec![0.0; len], vec![0.0; len]],
+        }
+    }
+    // TODO maybe make private and call in [ingest_audio]
     /// Copy second half to first half in preparation for new samples
     pub fn copy_to_back(&mut self) {
         for chan in self.buffer.iter_mut() {
@@ -31,5 +37,10 @@ impl DelayBuffer {
                 *audio_sample = *self_sample;
             }
         }
+    }
+
+    /// Can't return `&mut [&mut [f32]]` like nih_plug does cause it requires unsafe nastiness
+    pub fn as_mut_slice(&mut self) -> &mut [Vec<f32>] {
+        &mut self.buffer
     }
 }
