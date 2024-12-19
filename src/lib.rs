@@ -1,4 +1,5 @@
 mod analyzer;
+mod delay_buffer;
 mod editor;
 use nih_plug::prelude::*;
 use nih_plug_vizia::ViziaState;
