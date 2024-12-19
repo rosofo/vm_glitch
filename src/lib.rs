@@ -1,11 +1,11 @@
 mod analyzer;
 mod editor;
-use nih_plug::{prelude::*, wrapper::standalone};
+use nih_plug::prelude::*;
 use nih_plug_vizia::ViziaState;
 use std::{
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc, Mutex,
+        Arc,
     },
     vec,
 };

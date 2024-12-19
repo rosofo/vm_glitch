@@ -1,4 +1,3 @@
-use super::Vm;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 pub enum Opcode {

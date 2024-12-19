@@ -1,6 +1,4 @@
-use atomic_float::AtomicF32;
-use nih_plug::prelude::{util, Editor};
-use nih_plug_vizia::vizia::prelude::Color;
+use nih_plug::prelude::Editor;
 use nih_plug_vizia::vizia::prelude::*;
 use nih_plug_vizia::widgets::*;
 use nih_plug_vizia::{assets, create_vizia_editor, ViziaState, ViziaTheming};
@@ -11,7 +9,6 @@ use crate::analyzer::AnalyzerView;
 use crate::VmGlitchParams;
 use lang::*;
 use triple_buffer::{Input, Output};
-use vm::Vm;
 
 #[derive(Lens)]
 struct Data {

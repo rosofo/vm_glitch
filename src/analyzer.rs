@@ -4,7 +4,6 @@ use std::sync::Mutex;
 use nih_plug_vizia::vizia::prelude::*;
 use nih_plug_vizia::vizia::vg;
 use nih_plug_vizia::vizia::vg::Color;
-use nih_plug_vizia::vizia::vg::Quad;
 use triple_buffer::Output;
 
 type Buf = Arc<Mutex<Output<Vec<u8>>>>;

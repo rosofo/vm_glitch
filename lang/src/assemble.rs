@@ -1,6 +1,5 @@
-use ariadne::*;
 use itertools::Itertools;
-use vm::op::{Op, Opcode};
+use vm::op::Opcode;
 
 use crate::parse::Gtch;
 
