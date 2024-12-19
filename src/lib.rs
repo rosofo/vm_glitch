@@ -176,6 +176,9 @@ impl Plugin for VmGlitch {
             self.delay_buffer.as_mut_slice(),
             samples,
         );
+
+        self.delay_buffer.write_to_audio(buffer.as_slice());
+
         self.to_ui_buffer.0.publish();
 
         ProcessStatus::Normal
