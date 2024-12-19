@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 3a6226858e12d2f97b3f9af65745a0dde924e2bcb0fe42a98581a8f4b8a1ba75 # shrinks to (bytecode_len, code) = (131, [Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(13, 37), Copy(77, 80), Copy(34, 76), Jump(107), Copy(90, 21)])

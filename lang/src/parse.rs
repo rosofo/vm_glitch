@@ -9,11 +9,10 @@ pub enum Gtch {
 }
 
 fn parser<'a>() -> impl Parser<'a, &'a str, Vec<Gtch>, extra::Err<Rich<'a, char>>> {
-    let copy = text::int(10).then_ignore(just(">")).then(text::int(10)).map(
-        |(a1, a2): (&str, &str)| {
-            Gtch::Copy(a1.parse().unwrap(), a2.parse().unwrap())
-        },
-    );
+    let copy = text::int(10)
+        .then_ignore(just(">"))
+        .then(text::int(10))
+        .map(|(a1, a2): (&str, &str)| Gtch::Copy(a1.parse().unwrap(), a2.parse().unwrap()));
 
     let jump = just(".")
         .ignore_then(text::int(10))
@@ -49,7 +48,7 @@ mod tests {
 
     #[test]
     fn test_parsing() {
-        parse("1>25");
-        parse(".2 50>25");
+        parse("1>25").unwrap();
+        parse(".2 50>25").unwrap();
     }
 }

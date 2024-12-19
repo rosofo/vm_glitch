@@ -8,3 +8,7 @@ ariadne = "0.5.0"
 chumsky = "1.0.0-alpha.7"
 itertools = "0.13.0"
 vm = { version = "0.1.0", path = "../vm" }
+
+[dev-dependencies]
+proptest = "1.6.0"
+proptest-derive = "0.5.1"

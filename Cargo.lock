@@ -2009,6 +2009,8 @@ dependencies = [
  "ariadne",
  "chumsky",
  "itertools",
+ "proptest",
+ "proptest-derive",
  "vm",
 ]
 

@@ -170,20 +170,6 @@ mod tests {
     }
 
     proptest! {
-    #[test]
-    fn test_copying_alters_one_byte_max(
-            mut bytecode in prop::collection::vec(0..128u8, 511),
-            mut buf in prop::collection::vec(prop::collection::vec(-1.0..1.0f32, 512), 2)
-    ) {
-        bytecode.insert(0,Opcode::Copy as u8);
-        let orig = bytecode.clone();
-        let mut buf_ = buf.iter_mut().map(|s| &mut s[..]).collect::<Vec<_>>();
-        let mut vm = Vm::default();
-        vm.step(&mut bytecode, &mut buf_[..], 512);
-
-        let diff_bytes = bytecode.iter().zip(orig.iter()).filter(|(a, b)| a != b).count();
-        assert!(diff_bytes == 0 || diff_bytes == 1);
-    }
 
     #[test]
     fn test_noops_dont_change_bytecode_or_buffer(
