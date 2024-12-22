@@ -26,6 +26,7 @@ impl Model for Data {
             AppEvent::Edit(s) => {
                 let mut guard = self.params.code.lock().unwrap();
                 *guard = s.clone();
+                let str = guard.clone();
                 let parsed = lang::parse::parse(&guard);
                 match parsed {
                     Ok(gtch) => {
@@ -39,7 +40,14 @@ impl Model for Data {
                                 .len(),
                         );
                         let Ok(bytecode) = bytecode else {
-                            self.errs = format!("{:#?}", bytecode.unwrap_err());
+                            let errs = bytecode.unwrap_err();
+                            for err in errs.iter() {
+                                let mut report = Report::build(ReportKind::Error, 0..str.len())
+                                    .with_message(err.to_string());
+                                report.add_note(err);
+                                report.finish().eprint(Source::from(&str)).unwrap();
+                            }
+                            self.errs = format!("{:#?}", errs);
                             return;
                         };
                         {
@@ -91,27 +99,33 @@ pub(crate) fn create(
         }
         .build(cx);
 
-        Logo::new(cx);
+        ZStack::new(cx, |cx| {
+            Logo::new(cx);
+            VStack::new(cx, |cx| {
+                nih_plug_vizia::vizia::views::Label::new(cx, "VM Glitch")
+                    .font_family(vec![FamilyOwned::Name(String::from(assets::NOTO_SANS))])
+                    .font_weight(FontWeightKeyword::Thin)
+                    .font_size(30.0)
+                    .height(Pixels(100.0))
+                    .child_top(Stretch(1.0))
+                    .child_bottom(Pixels(0.0));
 
-        VStack::new(cx, |cx| {
-            nih_plug_vizia::vizia::views::Label::new(cx, "VM Glitch")
-                .font_family(vec![FamilyOwned::Name(String::from(assets::NOTO_SANS))])
-                .font_weight(FontWeightKeyword::Thin)
-                .font_size(30.0)
-                .height(Pixels(100.0))
-                .child_top(Stretch(1.0))
-                .child_bottom(Pixels(0.0));
+                Textbox::new(cx, Data::params.map(|p| p.code.lock().unwrap().clone()))
+                    .on_edit(|cx, s| cx.emit(AppEvent::Edit(s)))
+                    .min_width(Pixels(300.0));
+                nih_plug_vizia::vizia::views::Label::new(cx, Data::errs).width(Pixels(300.0));
 
-            Textbox::new(cx, Data::params.map(|p| p.code.lock().unwrap().clone()))
-                .on_edit(|cx, s| cx.emit(AppEvent::Edit(s)))
-                .min_width(Pixels(300.0));
-            nih_plug_vizia::vizia::views::Label::new(cx, Data::errs).width(Pixels(300.0));
-
-            AnalyzerView::new(cx, Data::from_vm_buffer);
+                AnalyzerView::new(cx, Data::from_vm_buffer)
+                    .width(Pixels(500.0))
+                    .child_space(Stretch(1.0));
+            })
+            .row_between(Pixels(0.0))
+            .child_left(Stretch(1.0))
+            .child_right(Stretch(1.0));
         })
-        .row_between(Pixels(0.0))
-        .child_left(Stretch(1.0))
-        .child_right(Stretch(1.0));
+        .background_color(nih_plug_vizia::vizia::style::Color::rgb(247, 255, 247))
+        .width(Percentage(100.0))
+        .height(Percentage(100.0));
 
         ResizeHandle::new(cx);
         cx.emit(GuiContextEvent::Resize);

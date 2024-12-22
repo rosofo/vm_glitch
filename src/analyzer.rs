@@ -14,12 +14,7 @@ pub struct AnalyzerView<L: Lens<Target = Buf>> {
 impl<L: Lens<Target = Buf>> AnalyzerView<L> {
     pub fn new(cx: &mut Context, bytecode: L) -> Handle<Self> {
         Self { bytecode }
-            .build(cx, |cx| {
-                Label::new(
-                    cx,
-                    bytecode.map(|buf| format!("{:?}", buf.lock().unwrap().read().len())),
-                );
-            })
+            .build(cx, |cx| {})
             // Redraw when lensed data changes
             .bind(bytecode, |mut handle, _| handle.needs_redraw())
     }
@@ -32,14 +27,14 @@ impl<L: Lens<Target = Buf>> View for AnalyzerView<L> {
         let mut guard = bytecode_ref.lock().unwrap();
         let bytecode = guard.read();
 
-        let bit_scale = 4.0;
-        let byte_scale = 2.0 * bit_scale;
+        let bit_scale = 8.0;
+        let byte_scale = 1.5 * bit_scale;
         let coords = (0..bytecode.len()).map(|i| {
             let x = i % 32;
             let y = i / 32;
             (
-                x as f32 * 2.0 * (byte_scale + 1.0) + bounds.x,
-                y as f32 * 2.0 * (byte_scale + 1.0) + bounds.y,
+                x as f32 * 2.0 * (byte_scale + 0.5) + bounds.x,
+                y as f32 * 2.0 * (byte_scale) + bounds.y,
                 bytecode[i],
             )
         });
@@ -49,9 +44,9 @@ impl<L: Lens<Target = Buf>> View for AnalyzerView<L> {
                 let y = y + bit_scale * ((i / 4) as f32);
                 let bit = (byte >> i) & 1;
                 let color = if bit == 1 {
-                    Color::rgb(255, 255, 255)
+                    Color::rgb(252, 109, 171)
                 } else {
-                    Color::rgb(0, 0, 0)
+                    Color::rgb(92, 65, 93)
                 };
                 let mut path = vg::Path::new();
                 path.rect(x, y, bit_scale, bit_scale);
