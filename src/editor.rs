@@ -6,6 +6,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use crate::analyzer::AnalyzerView;
+use crate::logo::Logo;
 use crate::VmGlitchParams;
 use lang::*;
 use triple_buffer::{Input, Output};
@@ -74,6 +75,7 @@ pub(crate) fn create(
     create_vizia_editor(editor_state, ViziaTheming::Custom, move |cx, _| {
         assets::register_noto_sans_light(cx);
         assets::register_noto_sans_thin(cx);
+        register_doto_font(cx);
 
         Data {
             params: params.clone(),
@@ -84,6 +86,8 @@ pub(crate) fn create(
             dirty: dirty.clone(),
         }
         .build(cx);
+
+        Logo::new(cx);
 
         VStack::new(cx, |cx| {
             nih_plug_vizia::vizia::views::Label::new(cx, "VM Glitch")
@@ -108,4 +112,8 @@ pub(crate) fn create(
         ResizeHandle::new(cx);
         cx.emit(GuiContextEvent::Resize);
     })
+}
+
+fn register_doto_font(cx: &mut Context) {
+    cx.add_font_mem(include_bytes!("../assets/Doto.ttf"));
 }

@@ -1,6 +1,7 @@
 mod analyzer;
 mod delay_buffer;
 mod editor;
+mod logo;
 use delay_buffer::DelayBuffer;
 use nih_plug::prelude::*;
 use nih_plug_vizia::ViziaState;
