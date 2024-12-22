@@ -16,7 +16,6 @@ impl Model for LogoData {
     fn event(&mut self, cx: &mut EventContext, event: &mut Event) {
         event.map(|event, _| {
             if let LogoEvent::Tick(delta) = event {
-                println!("adding to elapsed");
                 self.elapsed += *delta;
             }
         });
@@ -41,7 +40,6 @@ impl Logo {
             Binding::new(cx, LogoData::elapsed, |cx, lens| {
                 let text = {
                     let elapsed = lens.get(cx);
-                    println!("elapsed: {:?}", elapsed);
                     let mut canvas = Canvas::new(30, 30);
                     let speed = 2.0;
                     for i in 0..5 {
