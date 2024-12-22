@@ -1,6 +1,5 @@
 use std::{fmt::Debug, ops::Range};
 
-use ariadne::Report;
 use itertools::Itertools;
 use vm::op::Opcode;
 
@@ -60,6 +59,11 @@ pub fn assemble<'a>(
             ))?;
             Ok(vec![Opcode::Sample as u8, i as u8])
         }
+        Gtch::Swap(i, j) => {
+            let i = i.clone().idx().ok_or_else(|| AssembleError::Arg(Opcode::Swap, 0, Box::new(i.clone())))?;
+            let j = j.clone().idx().ok_or_else(|| AssembleError::Arg(Opcode::Swap, 0, Box::new(j.clone())))?;
+            Ok(vec![Opcode::Swap as u8, i as u8, j as u8])
+        },
     });
     let (bytecode, errs): (Vec<Vec<u8>>, Vec<AssembleError>) = bytecode.partition_result();
     if !errs.is_empty() {

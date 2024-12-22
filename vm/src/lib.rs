@@ -3,7 +3,6 @@ use dasp::*;
 use numquant::linear;
 use op::{Op, Opcode};
 use ring_buffer::Fixed;
-use signal::bus::SignalBus;
 
 pub type RawBuffer<'a> = &'a mut Fixed<Vec<[f32; 2]>>;
 
@@ -60,31 +59,31 @@ impl Vm {
 
     /// Parses the current [Op] and its args
     fn parse_op(&mut self, bytecode: &mut [u8], registers: usize) -> Option<Op> {
-        let byte = bytecode[self.pc];
-        let bytecode_len = bytecode.len();
-        if byte == Opcode::Copy as u8 && self.pc + 2 < bytecode_len {
+        let byte = *bytecode.get(self.pc)?;
+        if byte == Opcode::Copy as u8 || byte == Opcode::Swap as u8 {
+            let i = *bytecode.get(self.pc + 1)? as usize;
             self.pc += 1;
-            let i = bytecode[self.pc] as usize;
+            let j = *bytecode.get(self.pc + 1)? as usize;
             self.pc += 1;
-            let j = bytecode[self.pc] as usize;
+            
+            if i >= registers || j >= registers { return None; }
 
-            if i < registers && j < registers {
+            if byte == Opcode::Swap as u8 {
+                return Some(Op::Swap(i, j));
+            } else {
                 return Some(Op::Copy(i, j));
             }
-        } else if self.pc + 1 < bytecode_len {
-            let i = bytecode[self.pc + 1] as usize;
-
-            if i < bytecode_len {
-                if byte == Opcode::Jump as u8 {
-                    self.pc += 1;
-                    return Some(Op::Jump(i));
-                } else if byte == Opcode::Flip as u8 {
-                    self.pc += 1;
-                    return Some(Op::Flip(i));
-                } else if byte == Opcode::Sample as u8 {
-                    self.pc += 1;
-                    return Some(Op::Sample(i));
-                }
+        } else {
+            let i = *bytecode.get(self.pc + 1)? as usize;
+            if byte == Opcode::Jump as u8 {
+                self.pc += 1;
+                return Some(Op::Jump(i));
+            } else if byte == Opcode::Flip as u8 {
+                self.pc += 1;
+                return Some(Op::Flip(i));
+            } else if byte == Opcode::Sample as u8 {
+                self.pc += 1;
+                return Some(Op::Sample(i));
             }
         }
         None
@@ -116,6 +115,22 @@ impl Vm {
                 let mut sample = frame[0] + frame[1];
                 sample /= buf.len() as f32;
                 bytecode[self.pc] = linear::quantize(sample as f64, -1.0..1.0, 255);
+            },
+            Op::Swap(i, j) => {
+                for offset in 0..chunk_size_audio {
+                    let j_frame = *buf.get((j * chunk_size_audio) + offset);
+                    let i_frame = buf.get_mut((i * chunk_size_audio) + offset);
+                    let i_backup = *i_frame;
+                    i_frame[0] = j_frame[0];
+                    i_frame[1] = j_frame[1];
+                    let j_frame = buf.get_mut((j * chunk_size_audio) + offset);
+                    j_frame[0] = i_backup[0];
+                    j_frame[1] = i_backup[1];
+                }
+    
+                for offset in 0..chunk_size_bytecode {
+                    bytecode.swap((i * chunk_size_bytecode) + offset, (j * chunk_size_bytecode) + offset);
+                }
             }
             _ => {}
         }

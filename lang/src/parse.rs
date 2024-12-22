@@ -15,6 +15,7 @@ pub enum Gtch {
     Copy(Atom, Atom),
     Jump(Atom),
     Sample(Atom),
+    Swap(Atom, Atom)
 }
 
 fn parser<'a>() -> impl Parser<'a, &'a str, Vec<Gtch>, extra::Err<Rich<'a, char>>> {
@@ -36,7 +37,12 @@ fn parser<'a>() -> impl Parser<'a, &'a str, Vec<Gtch>, extra::Err<Rich<'a, char>
 
         let sample = just("~").ignore_then(atom).map(Gtch::Sample);
 
-        choice((copy, jump, sample)).padded().repeated().collect()
+        let swap = atom
+            .then_ignore(just("<>"))
+            .then(atom)
+            .map(|(a1, a2)| Gtch::Swap(a1, a2));
+
+        choice((copy, jump, sample, swap)).padded().repeated().collect()
     })
 }
 

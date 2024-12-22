@@ -10,6 +10,8 @@ pub enum Opcode {
     Jump,
     /// Copy sample `i` from the audio buffer into the bytecode. If there are multiple channels this will be the product.
     Sample,
+    /// Swap chunk `i` and `j` in the audio buffer and byte `i` for `j` in the bytecode. 
+    Swap,
 }
 
 pub enum Op {
@@ -17,4 +19,5 @@ pub enum Op {
     Flip(usize),
     Jump(usize),
     Sample(usize),
+    Swap(usize, usize)
 }
