@@ -28,9 +28,19 @@ triple_buffer = "8.0.0"
 vm = {path = "./vm"}
 dasp = { workspace = true }
 itertools = "0.13.0"
+tracing = { workspace = true, optional = true }
+tracing-subscriber = { workspace = true, optional = true }
+tracing-tracy = { workspace = true, optional = true }
+
+[features]
+tracing = ["dep:tracing", "dep:tracing-subscriber", "dep:tracing-tracy" ]
+
 
 [workspace.dependencies]
 dasp = { version = "0.11.0", features = [ "all" ] }
+tracing = { version = "0.1.41" }
+tracing-subscriber = { version = "0.3.19"}
+tracing-tracy = { version = "0.11.3"}
 
 [profile.release]
 lto = "thin"

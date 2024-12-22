@@ -1,5 +1,5 @@
-bundle:
-    cargo xtask bundle-universal vm_glitch --release
+bundle *CARGO_ARGS:
+    cargo xtask bundle-universal vm_glitch --release {{CARGO_ARGS}}
     just install
 
 install:

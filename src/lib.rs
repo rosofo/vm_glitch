@@ -12,6 +12,10 @@ use std::{
     },
     vec,
 };
+#[cfg(feature = "tracing")]
+use tracing_subscriber::layer::SubscriberExt;
+#[cfg(feature = "tracing")]
+use tracing_subscriber::util::SubscriberInitExt;
 use triple_buffer::{triple_buffer, Input, Output};
 use vm::Vm;
 
@@ -144,6 +148,13 @@ impl Plugin for VmGlitch {
         // Resize buffers and perform other potentially expensive initialization operations here.
         // The `reset()` function is always called right after this function. You can remove this
         // function if you do not need it.
+
+        #[cfg(feature = "tracing")]
+        {
+            let tracy = tracing_tracy::TracyLayer::new(tracing_tracy::DefaultConfig::default());
+            let sub = tracing_subscriber::fmt::layer();
+            tracing_subscriber::registry().with(tracy).with(sub).init();
+        }
         true
     }
 
