@@ -56,7 +56,7 @@ impl Default for VmGlitch {
             to_ui_buffer: (to_ui.0, Some(to_ui.1)),
             from_ui_buffer: (Some(from_ui.0), from_ui.1),
             // ??? use audio buffer * 2, which is dynamic ofc
-            delay_buffer: DelayBuffer::new(1024),
+            delay_buffer: DelayBuffer::new(8192),
         }
     }
 }
@@ -173,16 +173,14 @@ impl Plugin for VmGlitch {
                 .copy_from_slice(updated_bytecode.as_slice());
         }
 
-        self.delay_buffer.copy_to_back();
-        self.delay_buffer.ingest_audio(buffer.as_slice());
+        self.delay_buffer.ingest_audio(buffer);
 
         self.vm.run(
             self.to_ui_buffer.0.input_buffer(), // stage updates for the UI thread without publishing yet
-            self.delay_buffer.as_mut_slice(),
-            samples,
+            &mut self.delay_buffer.buffer,
         );
 
-        self.delay_buffer.write_to_audio(buffer.as_slice());
+        self.delay_buffer.write_to_audio(buffer);
 
         self.to_ui_buffer.0.publish();
 

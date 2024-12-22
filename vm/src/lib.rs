@@ -1,8 +1,11 @@
 pub mod op;
+use dasp::*;
 use numquant::linear;
 use op::{Op, Opcode};
+use ring_buffer::Fixed;
+use signal::bus::SignalBus;
 
-pub type RawBuffer<'a> = &'a mut [Vec<f32>];
+pub type RawBuffer<'a> = &'a mut Fixed<Vec<[f32; 2]>>;
 
 // TODO: Make this a fun resolution slider
 const REGISTER_COUNT: usize = 16;
@@ -30,25 +33,27 @@ impl Vm {
     /// Run the Vm's current bytecode.
     ///
     /// Modifies the audio buffer and the bytecode simultaneously.
-    pub fn run(&mut self, bytecode: &mut [u8], buf: RawBuffer, samples: usize) {
+    pub fn run(&mut self, bytecode: &mut [u8], buf: RawBuffer) {
         self.reset();
         while self.pc < bytecode.len()
-            && self.buf_index < samples
+            && self.buf_index < buf.len()
             && self.total_for_run <= self.max_instructions
         {
-            self.step(bytecode, buf, samples);
+            self.step(bytecode, buf);
         }
     }
 
-    fn step(&mut self, bytecode: &mut [u8], buf: RawBuffer, samples: usize) {
+    fn step(&mut self, bytecode: &mut [u8], buf: RawBuffer) {
         let op = self.parse_op(bytecode, REGISTER_COUNT);
         if let Some(op) = op {
-            self.run_op(op, bytecode, buf, samples);
+            self.run_op(op, bytecode, buf);
         }
 
-        for chan in buf.iter_mut() {
-            chan[self.buf_index] = chan[self.pc];
-        }
+        let chans = buf.get(self.pc);
+        let (left, right) = (chans[0], chans[1]);
+        let chans = buf.get_mut(self.buf_index);
+        chans[0] = left;
+        chans[1] = right;
 
         self.increment()
     }
@@ -85,28 +90,30 @@ impl Vm {
         None
     }
 
-    fn run_op(&mut self, op: Op, bytecode: &mut [u8], buf: RawBuffer, samples: usize) {
-        let chunk_size_audio = samples / REGISTER_COUNT;
+    fn run_op(&mut self, op: Op, bytecode: &mut [u8], buf: RawBuffer) {
+        let chunk_size_audio = buf.len() / REGISTER_COUNT;
         let chunk_size_bytecode = bytecode.len() / REGISTER_COUNT;
         match op {
-            Op::Copy(i, j) => {
-                for chan in buf.iter_mut() {
-                    let chunk_start = i * chunk_size_audio;
-                    let chunk_end = chunk_start + chunk_size_audio;
-                    chan.copy_within(chunk_start..chunk_end, j * chunk_size_audio);
+            Op::Copy(from_idx, to_idx) => {
+                let chunk_start = from_idx * chunk_size_audio;
+                let chunk_end = chunk_start + chunk_size_audio;
+                for (i, frame) in (chunk_start..chunk_end).enumerate() {
+                    let from_frame = *buf.get(frame);
+                    let to_frame = buf.get_mut((to_idx * chunk_size_audio) + i);
+                    to_frame[0] = from_frame[0];
+                    to_frame[1] = from_frame[1];
                 }
-                let chunk_start = i * chunk_size_bytecode;
+
+                let chunk_start = from_idx * chunk_size_bytecode;
                 let chunk_end = chunk_start + chunk_size_bytecode;
-                bytecode.copy_within(chunk_start..chunk_end, j * chunk_size_bytecode);
+                bytecode.copy_within(chunk_start..chunk_end, to_idx * chunk_size_bytecode);
             }
             Op::Jump(i) => {
                 self.pc = i;
             }
             Op::Sample(i) => {
-                let mut sample = 0.0;
-                for chan in buf.iter_mut() {
-                    sample += chan[i];
-                }
+                let frame = buf.get(i);
+                let mut sample = frame[0] + frame[1];
                 sample /= buf.len() as f32;
                 bytecode[self.pc] = linear::quantize(sample as f64, -1.0..1.0, 255);
             }
@@ -141,6 +148,7 @@ impl Default for Vm {
 
 #[cfg(test)]
 mod tests {
+    use dasp::ring_buffer::Fixed;
     use proptest::prelude::*;
 
     use crate::{op::Opcode, Vm};
@@ -149,21 +157,22 @@ mod tests {
         #[test]
         fn test_never_panics(
             mut bytecode in prop::collection::vec(prop::bits::u8::ANY, 512),
-            mut buf in prop::collection::vec(prop::collection::vec(-1.0..1.0f32, 512), 2)
+            buf in prop::collection::vec(prop::array::uniform2(-1.0..1.0f32), 512)
         ) {
+            let mut buf = Fixed::from(buf);
             let mut vm = Vm::default();
             for _ in 0..513 {
-                vm.run(&mut bytecode, &mut buf, 512);
+                vm.run(&mut bytecode, &mut buf);
             }
         }
     }
 
     #[test]
     fn test_jumping() {
-        let buf = vec![-1.0f32, 0.2, 0.4, -0.3];
+        let mut buf = Fixed::from(vec![[-1.0f32, 0.2], [0.4, -0.3]]);
         let mut vm = Vm::default();
         let mut bytecode = vec![Opcode::Jump as u8, 2, 0, 0];
-        vm.step(&mut bytecode, &mut [buf], 4);
+        vm.step(&mut bytecode, &mut buf);
 
         assert_eq!(vm.pc, 3);
     }
@@ -173,12 +182,13 @@ mod tests {
     #[test]
     fn test_noops_dont_change_bytecode_or_buffer(
             mut bytecode in prop::collection::vec(0u8..1, 511),
-            mut buf in prop::collection::vec(prop::collection::vec(-1.0..1.0f32, 512), 2)
+            buf in prop::collection::vec(prop::array::uniform2(-1.0..1.0f32), 512)
     ) {
+        let mut buf = Fixed::from(buf);
         let orig = bytecode.clone();
         let buf_ = buf.clone();
         let mut vm = Vm::default();
-        vm.step(&mut bytecode, &mut buf, 512);
+        vm.step(&mut bytecode, &mut buf);
 
         assert_eq!(bytecode, orig);
         assert_eq!(buf, buf_);
