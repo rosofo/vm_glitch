@@ -3,7 +3,6 @@ use dasp::*;
 use numquant::linear;
 use op::{Op, Opcode};
 use ring_buffer::Fixed;
-use signal::bus::SignalBus;
 
 pub type RawBuffer<'a> = &'a mut Fixed<Vec<[f32; 2]>>;
 
@@ -116,17 +115,19 @@ impl Vm {
                 bytecode[self.pc] = linear::quantize(sample as f64, -1.0..1.0, 255);
             },
             Op::Swap(i, j) => {
-                for chan in buf.iter_mut() {
-                    let i_chunk_start = i * chunk_size_audio;
-                    let j_chunk_start = j * chunk_size_audio;
-                    for offset in 0..chunk_size_audio {
-                        chan.swap(i_chunk_start + offset, j_chunk_start + offset);
-                    }
+                for offset in 0..chunk_size_audio {
+                    let j_frame = *buf.get((j * chunk_size_audio) + offset);
+                    let i_frame = buf.get_mut((i * chunk_size_audio) + offset);
+                    let i_backup = *i_frame;
+                    i_frame[0] = j_frame[0];
+                    i_frame[1] = j_frame[1];
+                    let j_frame = buf.get_mut((j * chunk_size_audio) + offset);
+                    j_frame[0] = i_backup[0];
+                    j_frame[1] = i_backup[1];
                 }
-                let i_chunk_start = i * chunk_size_bytecode;
-                let j_chunk_start = j * chunk_size_bytecode;
+    
                 for offset in 0..chunk_size_bytecode {
-                    bytecode.swap(i_chunk_start + offset, j_chunk_start + offset);
+                    bytecode.swap((i * chunk_size_bytecode) + offset, (j * chunk_size_bytecode) + offset);
                 }
             }
             _ => {}
