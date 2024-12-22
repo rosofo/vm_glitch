@@ -14,7 +14,6 @@ use triple_buffer::{Input, Output};
 #[derive(Lens)]
 struct Data {
     params: Arc<VmGlitchParams>,
-    code: String,
     from_vm_buffer: Arc<Mutex<Output<Vec<u8>>>>,
     to_vm_buffer: Arc<Mutex<Input<Vec<u8>>>>,
     errs: String,
@@ -25,8 +24,10 @@ impl Model for Data {
     fn event(&mut self, cx: &mut EventContext, event: &mut Event) {
         event.map(|app_event, meta| match app_event {
             AppEvent::Edit(s) => {
-                self.code = s.clone();
-                match lang::parse::parse(&self.code) {
+                let mut guard = self.params.code.lock().unwrap();
+                *guard = s.clone();
+                let parsed = lang::parse::parse(&guard);
+                match parsed {
                     Ok(gtch) => {
                         self.errs = "".to_string();
                         let bytecode = lang::assemble::assemble(
@@ -83,7 +84,6 @@ pub(crate) fn create(
 
         Data {
             params: params.clone(),
-            code: "".to_string(),
             from_vm_buffer: from_vm_buffer.clone(),
             to_vm_buffer: to_vm_buffer.clone(),
             errs: "".to_string(),
@@ -102,7 +102,7 @@ pub(crate) fn create(
                 .child_top(Stretch(1.0))
                 .child_bottom(Pixels(0.0));
 
-            Textbox::new(cx, Data::code)
+            Textbox::new(cx, Data::params.map(|p| p.code.lock().unwrap().clone()))
                 .on_edit(|cx, s| cx.emit(AppEvent::Edit(s)))
                 .min_width(Pixels(300.0));
             nih_plug_vizia::vizia::views::Label::new(cx, Data::errs).width(Pixels(300.0));
