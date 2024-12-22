@@ -8,7 +8,7 @@ use nih_plug_vizia::ViziaState;
 use std::{
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc,
+        Arc, Mutex,
     },
     vec,
 };
@@ -39,6 +39,9 @@ pub struct VmGlitchParams {
 
     #[persist = "editor-state"]
     pub editor_state: Arc<ViziaState>,
+
+    #[persist = "code"]
+    pub code: Arc<Mutex<String>>,
 }
 
 impl Default for VmGlitch {
@@ -62,6 +65,7 @@ impl Default for VmGlitchParams {
     fn default() -> Self {
         Self {
             editor_state: editor::default_state(),
+            code: Default::default(),
 
             // This gain is stored as linear gain. NIH-plug comes with useful conversion functions
             // to treat these kinds of parameters as if we were dealing with decibels. Storing this
