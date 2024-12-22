@@ -75,12 +75,14 @@ impl Vm {
             }
         } else {
             let i = *bytecode.get(self.pc + 1)? as usize;
-            self.pc += 1;
             if byte == Opcode::Jump as u8 {
+                self.pc += 1;
                 return Some(Op::Jump(i));
             } else if byte == Opcode::Flip as u8 {
+                self.pc += 1;
                 return Some(Op::Flip(i));
             } else if byte == Opcode::Sample as u8 {
+                self.pc += 1;
                 return Some(Op::Sample(i));
             }
         }
