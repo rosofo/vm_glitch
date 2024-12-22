@@ -1,5 +1,4 @@
-
-#[derive(PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Opcode {
     /// Allow for extra space in the bytecode
     Noop,

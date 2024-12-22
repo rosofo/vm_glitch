@@ -37,6 +37,10 @@ impl Model for Data {
                                 .peek_output_buffer()
                                 .len(),
                         );
+                        let Ok(bytecode) = bytecode else {
+                            self.errs = format!("{:#?}", bytecode.unwrap_err());
+                            return;
+                        };
                         {
                             let mut guard = self.to_vm_buffer.lock().unwrap();
                             guard.input_buffer().copy_from_slice(&bytecode);

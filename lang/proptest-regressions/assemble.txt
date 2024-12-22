@@ -5,3 +5,5 @@
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
 cc 3a6226858e12d2f97b3f9af65745a0dde924e2bcb0fe42a98581a8f4b8a1ba75 # shrinks to (bytecode_len, code) = (131, [Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(0, 0), Copy(13, 37), Copy(77, 80), Copy(34, 76), Jump(107), Copy(90, 21)])
+cc 20330c3aa40782b38717a2a4cb60822caea10b9ad260cc37eac326a3ac999022 # shrinks to r = Range(0..1), i = 0
+cc d607c471560e62bdedfea54f6402bf876ad234485a48966d12e473e798ffc1bc # shrinks to r = Range(0..1), i = 0
