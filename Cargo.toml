@@ -26,6 +26,11 @@ triple_buffer = "8.0.0"
 # the GPL compatibility requirement
 # nih_plug = { git = "https://github.com/robbert-vdh/nih-plug.git", default-features = false, features = ["assert_process_allocs"] }
 vm = {path = "./vm"}
+dasp = { workspace = true }
+itertools = "0.13.0"
+
+[workspace.dependencies]
+dasp = { version = "0.11.0", features = [ "all" ] }
 
 [profile.release]
 lto = "thin"

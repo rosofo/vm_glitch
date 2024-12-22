@@ -4270,6 +4270,7 @@ name = "vm"
 version = "0.1.0"
 dependencies = [
  "dasp",
+ "itertools",
  "numquant",
  "proptest",
  "proptest-derive",
@@ -4281,7 +4282,9 @@ name = "vm_glitch"
 version = "0.1.0"
 dependencies = [
  "atomic_float 1.1.0",
+ "dasp",
  "drawille",
+ "itertools",
  "lang",
  "nih_plug",
  "nih_plug_vizia",
