@@ -114,6 +114,20 @@ impl Vm {
                 let mut sample = frame[0] + frame[1];
                 sample /= buf.len() as f32;
                 bytecode[self.pc] = linear::quantize(sample as f64, -1.0..1.0, 255);
+            },
+            Op::Swap(i, j) => {
+                for chan in buf.iter_mut() {
+                    let i_chunk_start = i * chunk_size_audio;
+                    let j_chunk_start = j * chunk_size_audio;
+                    for offset in 0..chunk_size_audio {
+                        chan.swap(i_chunk_start + offset, j_chunk_start + offset);
+                    }
+                }
+                let i_chunk_start = i * chunk_size_bytecode;
+                let j_chunk_start = j * chunk_size_bytecode;
+                for offset in 0..chunk_size_bytecode {
+                    bytecode.swap(i_chunk_start + offset, j_chunk_start + offset);
+                }
             }
             _ => {}
         }
