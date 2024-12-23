@@ -34,9 +34,6 @@ impl Vm {
     ///
     /// Modifies the audio buffer and the bytecode simultaneously.
     pub fn run(&mut self, bytecode: &mut [u8], buf: RawBuffer) {
-        #[cfg(feature = "tracing")]
-        let _span = tracy_client::span!("VM");
-
         self.reset();
         while self.pc < bytecode.len()
             && self.buf_index < buf.len()
@@ -46,18 +43,13 @@ impl Vm {
         }
     }
 
-    #[instrument]
+    #[instrument(skip(self, bytecode, buf))]
     fn step(&mut self, bytecode: &mut [u8], buf: RawBuffer) {
         let op = self.parse_op(bytecode, REGISTER_COUNT);
         if let Some(op) = op {
             self.run_op(op, bytecode, buf);
         }
 
-        trace!(
-            "Copy samples {from} -> {to}",
-            from = self.pc,
-            to = self.buf_index
-        );
         let chans = buf.get(self.pc);
         let (left, right) = (chans[0], chans[1]);
         let chans = buf.get_mut(self.buf_index);
@@ -68,7 +60,7 @@ impl Vm {
     }
 
     /// Parses the current [Op] and its args
-    #[instrument]
+    #[instrument(skip(self, bytecode))]
     fn parse_op(&mut self, bytecode: &mut [u8], registers: usize) -> Option<Op> {
         let byte = *bytecode.get(self.pc)?;
         if byte == Opcode::Copy as u8 || byte == Opcode::Swap as u8 {
@@ -102,7 +94,7 @@ impl Vm {
         None
     }
 
-    #[instrument]
+    #[instrument(skip(self, bytecode, buf))]
     fn run_op(&mut self, op: Op, bytecode: &mut [u8], buf: RawBuffer) {
         let chunk_size_audio = buf.len() / REGISTER_COUNT;
         let chunk_size_bytecode = bytecode.len() / REGISTER_COUNT;

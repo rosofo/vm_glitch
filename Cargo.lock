@@ -2539,7 +2539,6 @@ dependencies = [
 [[package]]
 name = "nih_plug"
 version = "0.0.0"
-source = "git+https://github.com/robbert-vdh/nih-plug.git#40269e13940689c6b5432cc16782964ae33f3d12"
 dependencies = [
  "anyhow",
  "anymap",
@@ -2581,7 +2580,6 @@ source = "git+https://github.com/robbert-vdh/nih_plug_assets.git#a04e327923e120b
 [[package]]
 name = "nih_plug_derive"
 version = "0.1.0"
-source = "git+https://github.com/robbert-vdh/nih-plug.git#40269e13940689c6b5432cc16782964ae33f3d12"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2591,7 +2589,6 @@ dependencies = [
 [[package]]
 name = "nih_plug_vizia"
 version = "0.0.0"
-source = "git+https://github.com/robbert-vdh/nih-plug.git#40269e13940689c6b5432cc16782964ae33f3d12"
 dependencies = [
  "baseview 0.1.0 (git+https://github.com/RustAudio/baseview.git?rev=2c1b1a7b0fef1a29a5150a6a8f6fef6a0cbab8c4)",
  "crossbeam",
@@ -2604,7 +2601,6 @@ dependencies = [
 [[package]]
 name = "nih_plug_xtask"
 version = "0.1.0"
-source = "git+https://github.com/robbert-vdh/nih-plug.git#40269e13940689c6b5432cc16782964ae33f3d12"
 dependencies = [
  "anyhow",
  "cargo_metadata",

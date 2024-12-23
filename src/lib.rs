@@ -165,7 +165,7 @@ impl Plugin for VmGlitch {
         // allocate. You can remove this function if you do not need it.
     }
 
-    #[instrument(skip(buffer, _aux, _context))]
+    #[instrument(skip(self, buffer, _aux, _context))]
     fn process(
         &mut self,
         buffer: &mut Buffer,
@@ -174,21 +174,17 @@ impl Plugin for VmGlitch {
     ) -> ProcessStatus {
         // TODO decide whether to just get updates from the UI thread periodically, e.g. every X calls.
         // Would be less complex, though it would mean the bytecode gets reset regardless of whether the user edited it.
-        {
-            #[cfg(feature = "tracing")]
-            let _span = tracy_client::span!("UI -> audio: bytecode");
 
-            if let Ok(true) =
-                self.dirty
-                    .compare_exchange(true, false, Ordering::AcqRel, Ordering::Acquire)
-            {
-                let updated_bytecode = self.from_ui_buffer.1.read();
-                // copy the user's new bytecode without publishing back to the UI thread yet.
-                self.to_ui_buffer
-                    .0
-                    .input_buffer()
-                    .copy_from_slice(updated_bytecode.as_slice());
-            }
+        if let Ok(true) =
+            self.dirty
+                .compare_exchange(true, false, Ordering::AcqRel, Ordering::Acquire)
+        {
+            let updated_bytecode = self.from_ui_buffer.1.read();
+            // copy the user's new bytecode without publishing back to the UI thread yet.
+            self.to_ui_buffer
+                .0
+                .input_buffer()
+                .copy_from_slice(updated_bytecode.as_slice());
         }
 
         self.delay_buffer.ingest_audio(buffer);
@@ -200,10 +196,10 @@ impl Plugin for VmGlitch {
 
         self.delay_buffer.write_to_audio(buffer);
 
+        self.to_ui_buffer.0.publish();
+
         #[cfg(feature = "tracing")]
         tracy_client::Client::running().unwrap().frame_mark();
-
-        self.to_ui_buffer.0.publish();
 
         ProcessStatus::Normal
     }
