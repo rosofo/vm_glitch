@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+byte = "0.2.7"
+byte-slice-cast = "1.2.2"
 dasp = { workspace = true }
 derive_more = { version = "1.0.0", features = ["deref", "deref_mut", "from"] }
 image = "0.25.5"
