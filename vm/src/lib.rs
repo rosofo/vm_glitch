@@ -34,6 +34,9 @@ impl Vm {
     ///
     /// Modifies the audio buffer and the bytecode simultaneously.
     pub fn run(&mut self, bytecode: &mut [u8], buf: RawBuffer) {
+        #[cfg(feature = "tracing")]
+        let _span = tracy_client::span!("VM");
+
         self.reset();
         while self.pc < bytecode.len()
             && self.buf_index < buf.len()

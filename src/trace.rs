@@ -5,12 +5,10 @@ use {tracing_subscriber::layer::SubscriberExt, tracing_subscriber::util::Subscri
 
 pub struct Tracing {
     _default_guard: DefaultGuard,
-    _tracy: Client,
 }
 
 impl Tracing {
     pub fn setup() -> Self {
-        let client = Client::start();
         let tracy_layer = tracing_tracy::TracyLayer::default();
         let fmt = tracing_subscriber::fmt::layer().with_filter(LevelFilter::TRACE);
         let default_guard = tracing_subscriber::registry()
@@ -19,7 +17,6 @@ impl Tracing {
             .set_default();
         Self {
             _default_guard: default_guard,
-            _tracy: client,
         }
     }
 }

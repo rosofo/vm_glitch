@@ -14,6 +14,7 @@ use std::{
     },
     vec,
 };
+use tracing::instrument;
 use triple_buffer::{triple_buffer, Input, Output};
 use vm::Vm;
 
@@ -21,7 +22,9 @@ use vm::Vm;
 // https://github.com/robbert-vdh/nih-plug/blob/master/plugins/examples/gain/src/lib.rs to get
 // started
 
+#[derive(derive_more::Debug)]
 pub struct VmGlitch {
+    #[debug(ignore)]
     params: Arc<VmGlitchParams>,
     vm: Vm,
     to_ui_buffer: (Input<Vec<u8>>, Option<Output<Vec<u8>>>),
@@ -29,6 +32,7 @@ pub struct VmGlitch {
     dirty: Arc<AtomicBool>,
     delay_buffer: DelayBuffer,
     #[cfg(feature = "tracing")]
+    #[debug(ignore)]
     _tracing_guard: trace::Tracing,
 }
 
@@ -161,25 +165,30 @@ impl Plugin for VmGlitch {
         // allocate. You can remove this function if you do not need it.
     }
 
+    #[instrument(skip(buffer, _aux, _context))]
     fn process(
         &mut self,
         buffer: &mut Buffer,
         _aux: &mut AuxiliaryBuffers,
         _context: &mut impl ProcessContext<Self>,
     ) -> ProcessStatus {
-        let samples = buffer.samples();
         // TODO decide whether to just get updates from the UI thread periodically, e.g. every X calls.
         // Would be less complex, though it would mean the bytecode gets reset regardless of whether the user edited it.
-        if let Ok(true) =
-            self.dirty
-                .compare_exchange(true, false, Ordering::AcqRel, Ordering::Acquire)
         {
-            let updated_bytecode = self.from_ui_buffer.1.read();
-            // copy the user's new bytecode without publishing back to the UI thread yet.
-            self.to_ui_buffer
-                .0
-                .input_buffer()
-                .copy_from_slice(updated_bytecode.as_slice());
+            #[cfg(feature = "tracing")]
+            let _span = tracy_client::span!("UI -> audio: bytecode");
+
+            if let Ok(true) =
+                self.dirty
+                    .compare_exchange(true, false, Ordering::AcqRel, Ordering::Acquire)
+            {
+                let updated_bytecode = self.from_ui_buffer.1.read();
+                // copy the user's new bytecode without publishing back to the UI thread yet.
+                self.to_ui_buffer
+                    .0
+                    .input_buffer()
+                    .copy_from_slice(updated_bytecode.as_slice());
+            }
         }
 
         self.delay_buffer.ingest_audio(buffer);
