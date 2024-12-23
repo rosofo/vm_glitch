@@ -1,5 +1,4 @@
 use dasp::ring_buffer::Fixed;
-use dasp::*;
 use nih_plug::buffer::Buffer;
 
 #[derive(Debug)]

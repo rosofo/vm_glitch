@@ -1,4 +1,4 @@
-use std::{default, time::Instant};
+use std::time::Instant;
 
 use drawille::Canvas;
 use nih_plug_vizia::vizia::prelude::*;

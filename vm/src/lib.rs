@@ -3,7 +3,7 @@ use dasp::*;
 use numquant::linear;
 use op::{Op, Opcode};
 use ring_buffer::Fixed;
-use tracing::{debug, instrument, trace};
+use tracing::instrument;
 
 pub type RawBuffer<'a> = &'a mut Fixed<Vec<[f32; 2]>>;
 
