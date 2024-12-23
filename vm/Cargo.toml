@@ -9,6 +9,10 @@ itertools = "0.13.0"
 numquant = "0.2.0"
 rustfft = "6.2.0"
 tracing = { workspace = true }
+tracy-client = { workspace = true, optional = true }
+
+[features]
+tracing = ["dep:tracy-client"]
 
 [dev-dependencies]
 proptest = "1.6.0"

@@ -4441,6 +4441,7 @@ dependencies = [
  "proptest-derive",
  "rustfft",
  "tracing",
+ "tracy-client",
 ]
 
 [[package]]
@@ -4457,6 +4458,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "tracing-tracy",
+ "tracy-client",
  "triple_buffer",
  "vm",
 ]

@@ -3,6 +3,7 @@ use dasp::*;
 use numquant::linear;
 use op::{Op, Opcode};
 use ring_buffer::Fixed;
+use tracing::{debug, instrument, trace};
 
 pub type RawBuffer<'a> = &'a mut Fixed<Vec<[f32; 2]>>;
 
@@ -42,12 +43,18 @@ impl Vm {
         }
     }
 
+    #[instrument]
     fn step(&mut self, bytecode: &mut [u8], buf: RawBuffer) {
         let op = self.parse_op(bytecode, REGISTER_COUNT);
         if let Some(op) = op {
             self.run_op(op, bytecode, buf);
         }
 
+        trace!(
+            "Copy samples {from} -> {to}",
+            from = self.pc,
+            to = self.buf_index
+        );
         let chans = buf.get(self.pc);
         let (left, right) = (chans[0], chans[1]);
         let chans = buf.get_mut(self.buf_index);
@@ -58,6 +65,7 @@ impl Vm {
     }
 
     /// Parses the current [Op] and its args
+    #[instrument]
     fn parse_op(&mut self, bytecode: &mut [u8], registers: usize) -> Option<Op> {
         let byte = *bytecode.get(self.pc)?;
         if byte == Opcode::Copy as u8 || byte == Opcode::Swap as u8 {
@@ -65,8 +73,10 @@ impl Vm {
             self.pc += 1;
             let j = *bytecode.get(self.pc + 1)? as usize;
             self.pc += 1;
-            
-            if i >= registers || j >= registers { return None; }
+
+            if i >= registers || j >= registers {
+                return None;
+            }
 
             if byte == Opcode::Swap as u8 {
                 return Some(Op::Swap(i, j));
@@ -89,6 +99,7 @@ impl Vm {
         None
     }
 
+    #[instrument]
     fn run_op(&mut self, op: Op, bytecode: &mut [u8], buf: RawBuffer) {
         let chunk_size_audio = buf.len() / REGISTER_COUNT;
         let chunk_size_bytecode = bytecode.len() / REGISTER_COUNT;
@@ -101,6 +112,9 @@ impl Vm {
                     let to_frame = buf.get_mut((to_idx * chunk_size_audio) + i);
                     to_frame[0] = from_frame[0];
                     to_frame[1] = from_frame[1];
+
+                    #[cfg(feature = "tracing")]
+                    tracy_client::plot!("Op::Copy", 1.0);
                 }
 
                 let chunk_start = from_idx * chunk_size_bytecode;
@@ -109,13 +123,17 @@ impl Vm {
             }
             Op::Jump(i) => {
                 self.pc = i;
+                #[cfg(feature = "tracing")]
+                tracy_client::plot!("Op::Jump", 1.0);
             }
             Op::Sample(i) => {
                 let frame = buf.get(i);
                 let mut sample = frame[0] + frame[1];
                 sample /= buf.len() as f32;
                 bytecode[self.pc] = linear::quantize(sample as f64, -1.0..1.0, 255);
-            },
+                #[cfg(feature = "tracing")]
+                tracy_client::plot!("Op::Sample", 1.0);
+            }
             Op::Swap(i, j) => {
                 for offset in 0..chunk_size_audio {
                     let j_frame = *buf.get((j * chunk_size_audio) + offset);
@@ -127,10 +145,15 @@ impl Vm {
                     j_frame[0] = i_backup[0];
                     j_frame[1] = i_backup[1];
                 }
-    
+
                 for offset in 0..chunk_size_bytecode {
-                    bytecode.swap((i * chunk_size_bytecode) + offset, (j * chunk_size_bytecode) + offset);
+                    bytecode.swap(
+                        (i * chunk_size_bytecode) + offset,
+                        (j * chunk_size_bytecode) + offset,
+                    );
                 }
+                #[cfg(feature = "tracing")]
+                tracy_client::plot!("Op::Swap", 1.0);
             }
             _ => {}
         }

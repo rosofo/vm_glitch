@@ -2,6 +2,8 @@ mod analyzer;
 mod delay_buffer;
 mod editor;
 mod logo;
+#[cfg(feature = "tracing")]
+mod trace;
 use delay_buffer::DelayBuffer;
 use nih_plug::prelude::*;
 use nih_plug_vizia::ViziaState;
@@ -12,10 +14,6 @@ use std::{
     },
     vec,
 };
-#[cfg(feature = "tracing")]
-use tracing_subscriber::layer::SubscriberExt;
-#[cfg(feature = "tracing")]
-use tracing_subscriber::util::SubscriberInitExt;
 use triple_buffer::{triple_buffer, Input, Output};
 use vm::Vm;
 
@@ -30,6 +28,8 @@ pub struct VmGlitch {
     from_ui_buffer: (Option<Input<Vec<u8>>>, Output<Vec<u8>>),
     dirty: Arc<AtomicBool>,
     delay_buffer: DelayBuffer,
+    #[cfg(feature = "tracing")]
+    _tracing_guard: trace::Tracing,
 }
 
 #[derive(Params)]
@@ -50,9 +50,12 @@ pub struct VmGlitchParams {
 
 impl Default for VmGlitch {
     fn default() -> Self {
-        let vm = Vm::default();
         let to_ui = triple_buffer(&vec![0; 512]);
         let from_ui = triple_buffer(&vec![0; 512]);
+
+        #[cfg(feature = "tracing")]
+        let default_guard = trace::Tracing::setup();
+
         Self {
             params: Arc::new(VmGlitchParams::default()),
             vm: Vm::default(),
@@ -61,6 +64,8 @@ impl Default for VmGlitch {
             from_ui_buffer: (Some(from_ui.0), from_ui.1),
             // ??? use audio buffer * 2, which is dynamic ofc
             delay_buffer: DelayBuffer::new(8192),
+            #[cfg(feature = "tracing")]
+            _tracing_guard: default_guard,
         }
     }
 }
@@ -148,13 +153,6 @@ impl Plugin for VmGlitch {
         // Resize buffers and perform other potentially expensive initialization operations here.
         // The `reset()` function is always called right after this function. You can remove this
         // function if you do not need it.
-
-        #[cfg(feature = "tracing")]
-        {
-            let tracy = tracing_tracy::TracyLayer::new(tracing_tracy::DefaultConfig::default());
-            let sub = tracing_subscriber::fmt::layer();
-            tracing_subscriber::registry().with(tracy).with(sub).init();
-        }
         true
     }
 
@@ -192,6 +190,9 @@ impl Plugin for VmGlitch {
         );
 
         self.delay_buffer.write_to_audio(buffer);
+
+        #[cfg(feature = "tracing")]
+        tracy_client::Client::running().unwrap().frame_mark();
 
         self.to_ui_buffer.0.publish();
 
