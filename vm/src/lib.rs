@@ -1,3 +1,4 @@
+pub mod memory;
 pub mod op;
 use dasp::*;
 use numquant::linear;
@@ -9,6 +10,11 @@ pub type RawBuffer<'a> = &'a mut Fixed<Vec<[f32; 2]>>;
 
 // TODO: Make this a fun resolution slider
 const REGISTER_COUNT: usize = 16;
+
+struct ChunkIndices {
+    bytecode: usize,
+    audio: usize,
+}
 
 #[derive(Clone, Debug)]
 pub struct Vm {
@@ -101,6 +107,14 @@ impl Vm {
         None
     }
 
+    fn chunk_indices(i: usize, bytecode: &mut [u8], buf: RawBuffer) -> ChunkIndices {
+        let chunk_size_audio = buf.len() / REGISTER_COUNT;
+        let chunk_size_bytecode = bytecode.len() / REGISTER_COUNT;
+        ChunkIndices {
+            bytecode: (i % REGISTER_COUNT) * chunk_size_bytecode,
+            audio: (i % REGISTER_COUNT) * chunk_size_audio,
+        }
+    }
     #[instrument(skip(self, bytecode, buf))]
     fn run_op(&mut self, op: Op, bytecode: &mut [u8], buf: RawBuffer) {
         let chunk_size_audio = buf.len() / REGISTER_COUNT;
@@ -124,7 +138,7 @@ impl Vm {
                 bytecode.copy_within(chunk_start..chunk_end, to_idx * chunk_size_bytecode);
             }
             Op::Jump(i) => {
-                self.pc = i;
+                self.pc = Self::chunk_indices(i, bytecode, buf).bytecode;
                 #[cfg(feature = "tracing")]
                 tracy_client::plot!("Op::Jump", 1.0);
             }
