@@ -19,8 +19,8 @@ drawille = "0.3.0"
 lang = { version = "0.1.0", path = "lang" }
 # Remove the `assert_process_allocs` feature to allow allocations on the audio
 # thread in debug builds.
-nih_plug = { git = "https://github.com/robbert-vdh/nih-plug.git", features = ["assert_process_allocs", "standalone"] }
-nih_plug_vizia = { git = "https://github.com/robbert-vdh/nih-plug.git" }
+nih_plug = { path = "../nih-plug", features = ["assert_process_allocs", "standalone", "vst3"], default-features = false }
+nih_plug_vizia = { path = "../nih-plug/nih_plug_vizia" }
 triple_buffer = "8.0.0"
 # Uncomment the below line to disable the on-by-default VST3 feature to remove
 # the GPL compatibility requirement
@@ -28,9 +28,22 @@ triple_buffer = "8.0.0"
 vm = {path = "./vm"}
 dasp = { workspace = true }
 itertools = "0.13.0"
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, optional = true }
+tracing-tracy = { workspace = true, optional = true }
+tracy-client = { workspace = true, optional = true }
+derive_more = { version = "1.0.0", features = ["debug"] }
+
+[features]
+tracing = ["dep:tracing-subscriber", "dep:tracing-tracy", "dep:tracy-client", "vm/tracing" ]
+
 
 [workspace.dependencies]
 dasp = { version = "0.11.0", features = [ "all" ] }
+tracing = { version = "0.1.41" }
+tracing-subscriber = { version = "0.3.19"}
+tracing-tracy = { version = "0.11.3"}
+tracy-client = {version = "0.17.6" }
 
 [profile.release]
 lto = "thin"

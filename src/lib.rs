@@ -2,6 +2,8 @@ mod analyzer;
 mod delay_buffer;
 mod editor;
 mod logo;
+#[cfg(feature = "tracing")]
+mod trace;
 use delay_buffer::DelayBuffer;
 use nih_plug::prelude::*;
 use nih_plug_vizia::ViziaState;
@@ -12,6 +14,7 @@ use std::{
     },
     vec,
 };
+use tracing::{instrument, trace};
 use triple_buffer::{triple_buffer, Input, Output};
 use vm::Vm;
 
@@ -19,7 +22,9 @@ use vm::Vm;
 // https://github.com/robbert-vdh/nih-plug/blob/master/plugins/examples/gain/src/lib.rs to get
 // started
 
+#[derive(derive_more::Debug)]
 pub struct VmGlitch {
+    #[debug(ignore)]
     params: Arc<VmGlitchParams>,
     vm: Vm,
     to_ui_buffer: (Input<Vec<u8>>, Option<Output<Vec<u8>>>),
@@ -46,9 +51,12 @@ pub struct VmGlitchParams {
 
 impl Default for VmGlitch {
     fn default() -> Self {
-        let vm = Vm::default();
         let to_ui = triple_buffer(&vec![0; 512]);
         let from_ui = triple_buffer(&vec![0; 512]);
+
+        #[cfg(feature = "tracing")]
+        trace::setup();
+
         Self {
             params: Arc::new(VmGlitchParams::default()),
             vm: Vm::default(),
@@ -152,19 +160,21 @@ impl Plugin for VmGlitch {
         // allocate. You can remove this function if you do not need it.
     }
 
+    #[instrument(skip(self, buffer, _aux, _context))]
     fn process(
         &mut self,
         buffer: &mut Buffer,
         _aux: &mut AuxiliaryBuffers,
         _context: &mut impl ProcessContext<Self>,
     ) -> ProcessStatus {
-        let samples = buffer.samples();
         // TODO decide whether to just get updates from the UI thread periodically, e.g. every X calls.
         // Would be less complex, though it would mean the bytecode gets reset regardless of whether the user edited it.
+
         if let Ok(true) =
             self.dirty
                 .compare_exchange(true, false, Ordering::AcqRel, Ordering::Acquire)
         {
+            trace!("UI->audio bytecode update");
             let updated_bytecode = self.from_ui_buffer.1.read();
             // copy the user's new bytecode without publishing back to the UI thread yet.
             self.to_ui_buffer
@@ -182,7 +192,11 @@ impl Plugin for VmGlitch {
 
         self.delay_buffer.write_to_audio(buffer);
 
+        trace!("audio->UI bytecode update");
         self.to_ui_buffer.0.publish();
+
+        #[cfg(feature = "tracing")]
+        tracy_client::Client::running().unwrap().frame_mark();
 
         ProcessStatus::Normal
     }

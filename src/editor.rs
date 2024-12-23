@@ -9,6 +9,7 @@ use crate::analyzer::AnalyzerView;
 use crate::logo::Logo;
 use crate::VmGlitchParams;
 use lang::*;
+use tracing::{instrument, trace};
 use triple_buffer::{Input, Output};
 
 #[derive(Lens)]
@@ -21,6 +22,7 @@ struct Data {
 }
 
 impl Model for Data {
+    #[instrument(skip(self, cx, event))]
     fn event(&mut self, cx: &mut EventContext, event: &mut Event) {
         event.map(|app_event, meta| match app_event {
             AppEvent::Edit(s) => {
@@ -52,9 +54,10 @@ impl Model for Data {
                         };
                         {
                             let mut guard = self.to_vm_buffer.lock().unwrap();
-                            guard.input_buffer().copy_from_slice(&bytecode);
-                            guard.publish();
+                            trace!("->audio: publish bytecode");
+                            guard.write(bytecode);
                         }
+                        trace!("->audio: set dirty for bytecode");
                         self.dirty.store(true, Ordering::Release);
                     }
                     Err(errs) => {
