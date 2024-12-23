@@ -45,6 +45,13 @@ impl Vm {
 
     #[instrument(skip(self, bytecode, buf))]
     fn step(&mut self, bytecode: &mut [u8], buf: RawBuffer) {
+        #[cfg(feature = "tracing")]
+        {
+            tracy_client::plot!("PC", self.pc as f64);
+            tracy_client::plot!("buf_idx", self.buf_index as f64);
+            tracy_client::plot!("total_for_run", self.total_for_run as f64);
+        }
+
         let op = self.parse_op(bytecode, REGISTER_COUNT);
         if let Some(op) = op {
             self.run_op(op, bytecode, buf);

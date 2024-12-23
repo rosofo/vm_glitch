@@ -14,7 +14,7 @@ use std::{
     },
     vec,
 };
-use tracing::instrument;
+use tracing::{instrument, trace};
 use triple_buffer::{triple_buffer, Input, Output};
 use vm::Vm;
 
@@ -31,9 +31,6 @@ pub struct VmGlitch {
     from_ui_buffer: (Option<Input<Vec<u8>>>, Output<Vec<u8>>),
     dirty: Arc<AtomicBool>,
     delay_buffer: DelayBuffer,
-    #[cfg(feature = "tracing")]
-    #[debug(ignore)]
-    _tracing_guard: trace::Tracing,
 }
 
 #[derive(Params)]
@@ -58,7 +55,7 @@ impl Default for VmGlitch {
         let from_ui = triple_buffer(&vec![0; 512]);
 
         #[cfg(feature = "tracing")]
-        let default_guard = trace::Tracing::setup();
+        trace::setup();
 
         Self {
             params: Arc::new(VmGlitchParams::default()),
@@ -68,8 +65,6 @@ impl Default for VmGlitch {
             from_ui_buffer: (Some(from_ui.0), from_ui.1),
             // ??? use audio buffer * 2, which is dynamic ofc
             delay_buffer: DelayBuffer::new(8192),
-            #[cfg(feature = "tracing")]
-            _tracing_guard: default_guard,
         }
     }
 }
@@ -179,6 +174,7 @@ impl Plugin for VmGlitch {
             self.dirty
                 .compare_exchange(true, false, Ordering::AcqRel, Ordering::Acquire)
         {
+            trace!("UI->audio bytecode update");
             let updated_bytecode = self.from_ui_buffer.1.read();
             // copy the user's new bytecode without publishing back to the UI thread yet.
             self.to_ui_buffer
@@ -196,6 +192,7 @@ impl Plugin for VmGlitch {
 
         self.delay_buffer.write_to_audio(buffer);
 
+        trace!("audio->UI bytecode update");
         self.to_ui_buffer.0.publish();
 
         #[cfg(feature = "tracing")]
