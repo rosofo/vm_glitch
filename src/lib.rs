@@ -8,19 +8,14 @@ use delay_buffer::DelayBuffer;
 use nih_plug::prelude::*;
 use nih_plug_vizia::ViziaState;
 use std::{
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc, Mutex,
-    },
+    sync::{Arc, Mutex},
     vec,
 };
 use tracing::{instrument, trace};
 use triple_buffer::{triple_buffer, Input, Output};
 use vm::Vm;
 
-// This is a shortened version of the gain example with most comments removed, check out
-// https://github.com/robbert-vdh/nih-plug/blob/master/plugins/examples/gain/src/lib.rs to get
-// started
+pub type BytecodeUpdates = Vec<u8>;
 
 #[derive(derive_more::Debug)]
 pub struct VmGlitch {
@@ -28,9 +23,9 @@ pub struct VmGlitch {
     params: Arc<VmGlitchParams>,
     vm: Vm,
     to_ui_buffer: (Input<Vec<u8>>, Option<Output<Vec<u8>>>),
-    from_ui_buffer: (Option<Input<Vec<u8>>>, Output<Vec<u8>>),
-    dirty: Arc<AtomicBool>,
+    from_ui_buffer: (Option<Input<BytecodeUpdates>>, Output<BytecodeUpdates>),
     delay_buffer: DelayBuffer,
+    bytecode: Vec<u8>,
 }
 
 #[derive(Params)]
@@ -60,11 +55,10 @@ impl Default for VmGlitch {
         Self {
             params: Arc::new(VmGlitchParams::default()),
             vm: Vm::default(),
-            dirty: Arc::new(AtomicBool::new(false)),
             to_ui_buffer: (to_ui.0, Some(to_ui.1)),
             from_ui_buffer: (Some(from_ui.0), from_ui.1),
-            // ??? use audio buffer * 2, which is dynamic ofc
             delay_buffer: DelayBuffer::new(8192),
+            bytecode: vec![0; 512],
         }
     }
 }
@@ -170,29 +164,25 @@ impl Plugin for VmGlitch {
         // TODO decide whether to just get updates from the UI thread periodically, e.g. every X calls.
         // Would be less complex, though it would mean the bytecode gets reset regardless of whether the user edited it.
 
-        if let Ok(true) =
-            self.dirty
-                .compare_exchange(true, false, Ordering::AcqRel, Ordering::Acquire)
-        {
+        // using `updated` because the warning from its docs doesn't apply here. We are already 'spinning'.
+        if self.from_ui_buffer.1.updated() {
             trace!("UI->audio bytecode update");
-            let updated_bytecode = self.from_ui_buffer.1.read();
-            // copy the user's new bytecode without publishing back to the UI thread yet.
-            self.to_ui_buffer
-                .0
-                .input_buffer()
-                .copy_from_slice(updated_bytecode.as_slice());
+            let latest_ui_bytecode = self.from_ui_buffer.1.read();
+            self.bytecode.copy_from_slice(latest_ui_bytecode.as_slice());
         }
 
         self.delay_buffer.ingest_audio(buffer);
 
-        self.vm.run(
-            self.to_ui_buffer.0.input_buffer(), // stage updates for the UI thread without publishing yet
-            &mut self.delay_buffer.buffer,
-        );
+        self.vm
+            .run(&mut self.bytecode, &mut self.delay_buffer.buffer);
 
         self.delay_buffer.write_to_audio(buffer);
 
         trace!("audio->UI bytecode update");
+        self.to_ui_buffer
+            .0
+            .input_buffer()
+            .copy_from_slice(&self.bytecode);
         self.to_ui_buffer.0.publish();
 
         #[cfg(feature = "tracing")]
@@ -207,7 +197,6 @@ impl Plugin for VmGlitch {
             self.params.editor_state.clone(),
             self.to_ui_buffer.1.take().unwrap(),
             self.from_ui_buffer.0.take().unwrap(),
-            self.dirty.clone(),
         )
     }
 }
