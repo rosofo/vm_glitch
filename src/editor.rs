@@ -18,7 +18,6 @@ struct Data {
     from_vm_buffer: Arc<Mutex<Output<Vec<u8>>>>,
     to_vm_buffer: Arc<Mutex<Input<Vec<u8>>>>,
     errs: String,
-    dirty: Arc<AtomicBool>,
 }
 
 impl Model for Data {
@@ -57,8 +56,6 @@ impl Model for Data {
                             trace!("->audio: publish bytecode");
                             guard.write(bytecode);
                         }
-                        trace!("->audio: set dirty for bytecode");
-                        self.dirty.store(true, Ordering::Release);
                     }
                     Err(errs) => {
                         self.errs = format!("{:#?}", errs);
@@ -83,7 +80,6 @@ pub(crate) fn create(
     editor_state: Arc<ViziaState>,
     from_vm_buffer: Output<Vec<u8>>,
     to_vm_buffer: Input<Vec<u8>>,
-    dirty: Arc<AtomicBool>,
 ) -> Option<Box<dyn Editor>> {
     // need these to be Arc<Mutex<...>> only for the UI thread, there's no blocking from the audio thread.
     let from_vm_buffer = Arc::new(Mutex::new(from_vm_buffer));
@@ -98,7 +94,6 @@ pub(crate) fn create(
             from_vm_buffer: from_vm_buffer.clone(),
             to_vm_buffer: to_vm_buffer.clone(),
             errs: "".to_string(),
-            dirty: dirty.clone(),
         }
         .build(cx);
 
