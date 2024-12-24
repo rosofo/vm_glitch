@@ -4,6 +4,7 @@ use byte::*;
 use byte_slice_cast::*;
 use ctx::NATIVE;
 use dasp::*;
+use slice::{ToFrameSlice, ToFrameSliceMut};
 
 /// A unified buffer with instructions and audio samples
 ///
@@ -19,8 +20,8 @@ use dasp::*;
 ///   └────────────────────────────────────────────────────────┘
 /// ```
 pub struct Memory {
-    pub buffer: Vec<u8>,
-    pub program_len: usize,
+    buffer: Vec<u8>,
+    program_len: usize,
 }
 
 pub enum Area {
@@ -48,6 +49,9 @@ impl Memory {
             Area::Sample
         }
     }
+    /// Read memory as sample, ignoring layout.
+    ///
+    /// This will treat bytecode as f32 samples if indexing into bytecode area
     pub fn get_as_sample(&self, index: usize) -> Option<f32> {
         let mut offset = index;
         self.buffer.read_with(&mut offset, NATIVE).ok()
@@ -70,5 +74,31 @@ impl Memory {
     pub fn slices_mut(&mut self) -> (&mut [u8], &mut [f32]) {
         let (bytes, sample_bytes) = self.buffer.split_at_mut(self.program_len);
         (bytes, sample_bytes.as_mut_slice_of().unwrap())
+    }
+
+    /// Treat the entire buffer as a slice of samples
+    pub fn as_sample_slice(&self) -> &[f32] {
+        self.buffer.as_slice_of().unwrap()
+    }
+    /// Treat the entire buffer as a mutable slice of samples
+    pub fn as_mut_sample_slice(&mut self) -> &mut [f32] {
+        self.buffer.as_mut_slice_of().unwrap()
+    }
+
+    /// Treat the entire buffer as a slice of frames
+    pub fn as_frames(&self) -> &[[f32; 2]] {
+        self.buffer[self.program_len..]
+            .as_slice_of::<f32>()
+            .unwrap()
+            .to_frame_slice()
+            .unwrap()
+    }
+    /// Treat the entire buffer as a mutable slice of frames
+    pub fn as_mut_frames(&mut self) -> &mut [[f32; 2]] {
+        self.buffer[self.program_len..]
+            .as_mut_slice_of::<f32>()
+            .unwrap()
+            .to_frame_slice_mut()
+            .unwrap()
     }
 }
