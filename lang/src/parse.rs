@@ -16,8 +16,8 @@ pub enum Gtch {
     Jump(Atom),
     Sample(Atom),
     Swap(Atom, Atom),
-    Loop {
-        iterations: usize,
+    RepeatGroup {
+        max_iters: usize,
         children: Vec<Gtch>,
     },
 }
@@ -51,8 +51,8 @@ fn parser<'a>() -> impl Parser<'a, &'a str, Vec<Gtch>, extra::Err<Rich<'a, char>
             .padded()
             .then(tree.or_not().padded())
             .delimited_by(just("["), just("]"))
-            .map(|(iterations, children)| Gtch::Loop {
-                iterations,
+            .map(|(iterations, children)| Gtch::RepeatGroup {
+                max_iters: iterations,
                 children: children.unwrap_or(vec![]),
             });
 
