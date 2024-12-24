@@ -4,6 +4,7 @@ use byte::*;
 use byte_slice_cast::*;
 use ctx::NATIVE;
 use dasp::*;
+use eyre::bail;
 use slice::{ToFrameSlice, ToFrameSliceMut};
 
 /// A unified buffer with instructions and audio samples
@@ -19,8 +20,9 @@ use slice::{ToFrameSlice, ToFrameSliceMut};
 ///   │ └─────┘└─────┘└─────┘└─────┘└─────┘└─────┘└─~~──┘└────┘│
 ///   └────────────────────────────────────────────────────────┘
 /// ```
+#[derive(Debug)]
 pub struct Memory {
-    buffer: Vec<u8>,
+    pub buffer: Vec<u8>,
     program_len: usize,
 }
 
@@ -42,6 +44,20 @@ impl Iterator for Samples<'_> {
 }
 
 impl Memory {
+    pub fn len(&self) -> usize {
+        self.buffer.len()
+    }
+    pub fn new(program_size: usize, audio_size: usize) -> eyre::Result<Self> {
+        // f32_size * channels == 4 * 2
+        let len = program_size + audio_size * 8;
+        if len % 4 != 0 {
+            bail!("Buffer length for given sizes must be divisible by 4")
+        }
+        Ok(Self {
+            buffer: vec![0; len],
+            program_len: program_size,
+        })
+    }
     pub fn area_type(&self, index: usize) -> Area {
         if index < self.program_len {
             Area::Bytecode
@@ -109,5 +125,26 @@ impl Memory {
             .unwrap()
             .to_frame_slice_mut()
             .unwrap()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Memory;
+    use proptest::prelude::*;
+
+    prop_compose! {
+        fn arb_memory()(prog_len in 32..512usize, audio_len in 32..512usize) -> eyre::Result<Memory> {
+            Memory::new(prog_len, audio_len)
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn test_slicing(memory in arb_memory(), i in any::<prop::sample::Index>()) {
+            prop_assume!(memory.is_ok());
+            let memory = memory.unwrap();
+            memory.get_as_sample(i.index(memory.len()) / 4).unwrap();
+        }
     }
 }

@@ -25,12 +25,6 @@ pub struct Vm2 {
     cycle_count: usize,
 }
 
-impl Vm2 {
-    fn next_byte(&mut self) -> Option<u8> {
-        self.memory.get_as_byte(self.pc);
-    }
-}
-
 #[derive(Clone, Debug)]
 pub struct Vm {
     /// The maximum number of instructions to run.
