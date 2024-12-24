@@ -17,7 +17,7 @@ pub enum Gtch {
     Sample(Atom),
     Swap(Atom, Atom),
     Loop {
-        iterations: Atom,
+        iterations: usize,
         children: Vec<Gtch>,
     },
 }
@@ -46,13 +46,14 @@ fn parser<'a>() -> impl Parser<'a, &'a str, Vec<Gtch>, extra::Err<Rich<'a, char>
             .then(atom)
             .map(|(a1, a2)| Gtch::Swap(a1, a2));
 
-        let parse_loop = just("[")
-            .ignore_then(atom)
-            .then(tree)
-            .then_ignore(just("]"))
-            .map(|(atom, children)| Gtch::Loop {
-                iterations: atom,
-                children,
+        let parse_loop = text::int(10)
+            .map(|d: &str| d.parse().unwrap())
+            .padded()
+            .then(tree.or_not().padded())
+            .delimited_by(just("["), just("]"))
+            .map(|(iterations, children)| Gtch::Loop {
+                iterations,
+                children: children.unwrap_or(vec![]),
             });
 
         choice((copy, jump, sample, swap, parse_loop))

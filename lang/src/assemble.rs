@@ -80,7 +80,7 @@ pub fn assemble<'a>(
 
     Ok(bytecode)
 }
-/// Arbitrary error type for demonstration purposes
+
 #[derive(Debug, Error)]
 #[error("{0}")]
 struct AssembleError(&'static str);
