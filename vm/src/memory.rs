@@ -49,6 +49,15 @@ impl Memory {
             Area::Sample
         }
     }
+
+    /// Read memory as byte, ignoring layout.
+    ///
+    /// This will treat bytecode as f32 samples if indexing into bytecode area
+    pub fn get_as_byte(&self, index: usize) -> Option<u8> {
+        let mut offset = index;
+        self.buffer.read_with(&mut offset, NATIVE).ok()
+    }
+
     /// Read memory as sample, ignoring layout.
     ///
     /// This will treat bytecode as f32 samples if indexing into bytecode area

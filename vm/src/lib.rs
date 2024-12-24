@@ -1,6 +1,7 @@
 pub mod memory;
 pub mod op;
 use dasp::*;
+use memory::Memory;
 use numquant::linear;
 use op::{Op, Opcode};
 use ring_buffer::Fixed;
@@ -14,6 +15,20 @@ const REGISTER_COUNT: usize = 16;
 struct ChunkIndices {
     bytecode: usize,
     audio: usize,
+}
+
+pub struct Vm2 {
+    pc: usize,
+    audio_buffer_pos: usize,
+    memory: Memory,
+    max_cycles: usize,
+    cycle_count: usize,
+}
+
+impl Vm2 {
+    fn next_byte(&mut self) -> Option<u8> {
+        self.memory.get_as_byte(self.pc);
+    }
 }
 
 #[derive(Clone, Debug)]
