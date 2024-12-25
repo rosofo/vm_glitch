@@ -5,7 +5,7 @@ use vm::op::Op;
 
 use crate::{assemble::assemble, parse::Gtch};
 
-pub fn compile(ast: &[Gtch]) -> Result<Vec<u8>, eyre::Report> {
+pub fn compile(ast: &[Gtch], bytecode_len: usize) -> Result<Vec<u8>, eyre::Report> {
     let mut ir = vec![];
 
     for node in ast.iter().cloned() {
@@ -22,7 +22,7 @@ pub fn compile(ast: &[Gtch]) -> Result<Vec<u8>, eyre::Report> {
 
     println!("{:?}", ir);
 
-    assemble(&ir, 512)
+    assemble(&ir, bytecode_len)
 }
 
 /// Unroll a repeated group statically, incrementing any arguments of the child ops
@@ -58,12 +58,18 @@ fn unroll_repeat_group(repeats: usize, children: Vec<Gtch>) -> impl Iterator<Ite
 #[cfg(test)]
 mod tests {
     use crate::parse;
+    use proptest::prelude::*;
 
     use super::*;
 
-    #[test]
-    fn test_unrolling() {
-        let ast = parse::parse("[3 .0 1>2 ]").unwrap();
-        let bytecode = compile(&ast).unwrap();
+    proptest! {
+        #[test]
+        fn test_unrolling(ops in prop::collection::vec(prop::sample::select(&[
+            "~0", "0>1", "0<>1", ".0"
+        ]), 0..10).prop_map(|ops| ops.join(" "))) {
+            let program = ["[0", &ops, "]"].join(" ");
+            let result = parse::parse(&program).unwrap();
+            compile(&result, 32).unwrap();
+        }
     }
 }
