@@ -31,8 +31,8 @@ impl Model for Data {
                 match parsed {
                     Ok(gtch) => {
                         self.errs = "".to_string();
-                        let bytecode = lang::assemble::assemble(
-                            gtch.iter(),
+                        let bytecode = lang::compile::compile(
+                            &gtch,
                             self.from_vm_buffer
                                 .lock()
                                 .unwrap()
@@ -41,12 +41,7 @@ impl Model for Data {
                         );
                         let Ok(bytecode) = bytecode else {
                             let errs = bytecode.unwrap_err();
-                            for err in errs.iter() {
-                                let mut report = Report::build(ReportKind::Error, 0..str.len())
-                                    .with_message(err.to_string());
-                                report.add_note(err);
-                                report.finish().eprint(Source::from(&str)).unwrap();
-                            }
+                            println!("{}", errs);
                             self.errs = format!("{:#?}", errs);
                             return;
                         };
