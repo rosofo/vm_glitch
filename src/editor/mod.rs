@@ -1,3 +1,5 @@
+mod analyzer;
+mod logo;
 use generate::generate;
 use nih_plug::prelude::Editor;
 use nih_plug_vizia::vizia::prelude::*;
@@ -6,10 +8,10 @@ use nih_plug_vizia::{assets, create_vizia_editor, ViziaState, ViziaTheming};
 use std::sync::atomic::AtomicUsize;
 use std::sync::{Arc, Mutex};
 
-use crate::analyzer::AnalyzerView;
-use crate::logo::Logo;
 use crate::VmGlitchParams;
+use analyzer::AnalyzerView;
 use lang::*;
+use logo::Logo;
 use tracing::{instrument, trace};
 use triple_buffer::{Input, Output};
 
@@ -143,5 +145,5 @@ pub(crate) fn create(
 }
 
 fn register_doto_font(cx: &mut Context) {
-    cx.add_font_mem(include_bytes!("../assets/Doto.ttf"));
+    cx.add_font_mem(include_bytes!("../../assets/Doto.ttf"));
 }
