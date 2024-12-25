@@ -1,10 +1,12 @@
 use std::iter::once;
 
 use itertools::Itertools;
+use tracing::instrument;
 use vm::op::Op;
 
 use crate::{assemble::assemble, parse::Gtch};
 
+#[instrument(skip(ast, bytecode_len))]
 pub fn compile(ast: &[Gtch], bytecode_len: usize) -> Result<Vec<u8>, eyre::Report> {
     let mut ir = vec![];
 

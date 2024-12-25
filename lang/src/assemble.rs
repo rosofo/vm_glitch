@@ -3,11 +3,13 @@ use std::{fmt::Debug, ops::Range};
 use color_eyre::Section;
 use itertools::Itertools;
 use thiserror::Error;
+use tracing::instrument;
 use vm::op::Opcode;
 
 use crate::parse::{Atom, Gtch};
 
 // i know i know it's really horrible, I tried to be clever about Results and let's hope I come to my senses sometime
+#[instrument(skip(gtch, bytecode_size))]
 pub fn assemble<'a>(
     gtch: impl IntoIterator<Item = &'a Gtch>,
     bytecode_size: usize,

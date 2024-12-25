@@ -197,6 +197,7 @@ impl Plugin for VmGlitch {
             self.params.editor_state.clone(),
             self.to_ui_buffer.1.take().unwrap(),
             self.from_ui_buffer.0.take().unwrap(),
+            self.vm.ui_counters.clone(),
         )
     }
 }
