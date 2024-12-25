@@ -1,10 +1,12 @@
 mod analyzer;
 mod logo;
+mod program_editor;
 use generate::generate;
 use nih_plug::prelude::Editor;
 use nih_plug_vizia::vizia::prelude::*;
 use nih_plug_vizia::widgets::*;
 use nih_plug_vizia::{assets, create_vizia_editor, ViziaState, ViziaTheming};
+use program_editor::ProgramEdit;
 use std::sync::atomic::AtomicUsize;
 use std::sync::{Arc, Mutex};
 
@@ -16,7 +18,7 @@ use tracing::{instrument, trace};
 use triple_buffer::{Input, Output};
 
 #[derive(Lens)]
-struct Data {
+struct VmData {
     params: Arc<VmGlitchParams>,
     from_vm_buffer: Arc<Mutex<Output<Vec<u8>>>>,
     to_vm_buffer: Arc<Mutex<Input<Vec<u8>>>>,
@@ -24,11 +26,11 @@ struct Data {
     counters: (Arc<AtomicUsize>, Arc<AtomicUsize>),
 }
 
-impl Model for Data {
+impl Model for VmData {
     #[instrument(skip(self, cx, event))]
     fn event(&mut self, cx: &mut EventContext, event: &mut Event) {
         event.map(|app_event, meta| match app_event {
-            AppEvent::Edit(s) => {
+            VmEvent::Edit(s) => {
                 let mut guard = self.params.code.lock().unwrap();
                 *guard = s.clone();
                 let str = guard.clone();
@@ -61,21 +63,20 @@ impl Model for Data {
                     }
                 };
             }
-            AppEvent::Gen => {
-                cx.emit(AppEvent::Edit(generate()));
+            VmEvent::Gen => {
+                cx.emit(VmEvent::Edit(generate()));
             }
         });
     }
 }
 
+enum VmEvent {
+    Edit(String),
+    Gen,
+}
 // Makes sense to also define this here, makes it a bit easier to keep track of
 pub(crate) fn default_state() -> Arc<ViziaState> {
     ViziaState::new(|| (600, 400))
-}
-
-enum AppEvent {
-    Edit(String),
-    Gen,
 }
 
 pub(crate) fn create(
@@ -93,7 +94,7 @@ pub(crate) fn create(
         assets::register_noto_sans_thin(cx);
         register_doto_font(cx);
 
-        Data {
+        VmData {
             params: params.clone(),
             from_vm_buffer: from_vm_buffer.clone(),
             to_vm_buffer: to_vm_buffer.clone(),
@@ -113,20 +114,9 @@ pub(crate) fn create(
                     .child_top(Stretch(1.0))
                     .child_bottom(Pixels(0.0));
 
-                HStack::new(cx, |cx| {
-                    Button::new(
-                        cx,
-                        |cx| cx.emit(AppEvent::Gen),
-                        |cx| nih_plug_vizia::vizia::views::Label::new(cx, "Generate"),
-                    );
-                    Textbox::new(cx, Data::params.map(|p| p.code.lock().unwrap().clone()))
-                        .on_edit(|cx, s| cx.emit(AppEvent::Edit(s)))
-                        .min_width(Pixels(300.0));
-                });
+                ProgramEdit::new(cx);
 
-                nih_plug_vizia::vizia::views::Label::new(cx, Data::errs).width(Pixels(300.0));
-
-                AnalyzerView::new(cx, Data::from_vm_buffer, Data::counters)
+                AnalyzerView::new(cx, VmData::from_vm_buffer, VmData::counters)
                     .width(Pixels(500.0))
                     .child_space(Stretch(1.0));
             })
