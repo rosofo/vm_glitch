@@ -1,73 +1,75 @@
 use std::{fmt::Debug, ops::Range};
 
+use color_eyre::Section;
 use itertools::Itertools;
+use thiserror::Error;
 use vm::op::Opcode;
 
 use crate::parse::{Atom, Gtch};
-
-use thiserror::Error;
-#[derive(Debug, Error)]
-pub enum AssembleError {
-    #[error("Wrong type for argument {1} to `{0:?}`: {2:?}")]
-    Arg(Opcode, usize, Box<dyn Debug>),
-    #[error("Index for op {0:?} is greater than 255: {1}")]
-    Index(Opcode, usize),
-    #[error("Range for op {0:?} is empty: {1:?}")]
-    EmptyRange(Opcode, Range<usize>),
-}
 
 // i know i know it's really horrible, I tried to be clever about Results and let's hope I come to my senses sometime
 pub fn assemble<'a>(
     gtch: impl IntoIterator<Item = &'a Gtch>,
     bytecode_size: usize,
-) -> Result<Vec<u8>, Vec<AssembleError>> {
-    let bytecode = gtch.into_iter().map(|gtch| match gtch {
-        Gtch::Copy(i, j) => {
-            let j =
-                j.clone()
-                    .idx()
-                    .ok_or(AssembleError::Arg(Opcode::Copy, 1, Box::new(j.clone())))?;
-            Ok(match i {
-                Atom::Idx(i) => vec![Opcode::Copy as u8, *i as u8, j as u8],
-                Atom::Range(r) => {
-                    if r.is_empty() {
-                        return Err(AssembleError::EmptyRange(Opcode::Copy, r.clone()));
-                    }
-                    if r.len() + j > 255 {
-                        return Err(AssembleError::Index(Opcode::Copy, r.len() + j));
-                    }
+) -> Result<Vec<u8>, eyre::Report> {
+    let bytecode = gtch
+        .into_iter()
+        .map::<std::result::Result<Vec<u8>, AssembleError>, _>(|gtch| match gtch {
+            Gtch::Copy(i, j) => {
+                let j = j.clone().idx().ok_or(AssembleError(
+                    "Range cannot be used as second argument to Copy",
+                ))?;
+                Ok(match i {
+                    Atom::Idx(i) => vec![Opcode::Copy as u8, *i as u8, j as u8],
+                    Atom::Range(r) => {
+                        if r.is_empty() {
+                            return Err(AssembleError("Range must be nonempty"));
+                        }
+                        if r.len() + j > 255 {
+                            return Err(AssembleError("Range ends beyond the max index (255)"));
+                        }
 
-                    r.clone()
-                        .enumerate()
-                        .flat_map(|(i, k)| vec![Opcode::Copy as u8, k as u8, j as u8 + i as u8])
-                        .collect_vec()
-                }
-            })
-        }
-        Gtch::Jump(i) => {
-            let i =
-                i.clone()
+                        r.clone()
+                            .enumerate()
+                            .flat_map(|(i, k)| vec![Opcode::Copy as u8, k as u8, j as u8 + i as u8])
+                            .collect_vec()
+                    }
+                })
+            }
+            Gtch::Jump(i) => {
+                let i = i
+                    .clone()
                     .idx()
-                    .ok_or(AssembleError::Arg(Opcode::Jump, 0, Box::new(i.clone())))?;
-            Ok(vec![Opcode::Jump as u8, i as u8])
-        }
-        Gtch::Sample(i) => {
-            let i = i.clone().idx().ok_or(AssembleError::Arg(
-                Opcode::Sample,
-                0,
-                Box::new(i.clone()),
-            ))?;
-            Ok(vec![Opcode::Sample as u8, i as u8])
-        }
-        Gtch::Swap(i, j) => {
-            let i = i.clone().idx().ok_or_else(|| AssembleError::Arg(Opcode::Swap, 0, Box::new(i.clone())))?;
-            let j = j.clone().idx().ok_or_else(|| AssembleError::Arg(Opcode::Swap, 0, Box::new(j.clone())))?;
-            Ok(vec![Opcode::Swap as u8, i as u8, j as u8])
-        },
-    });
+                    .ok_or(AssembleError("Range cannot be used as argument to Jump"))?;
+                Ok(vec![Opcode::Jump as u8, i as u8])
+            }
+            Gtch::Sample(i) => {
+                let i = i
+                    .clone()
+                    .idx()
+                    .ok_or(AssembleError("Cannot sample a range"))?;
+                Ok(vec![Opcode::Sample as u8, i as u8])
+            }
+            Gtch::Swap(i, j) => {
+                let i = i
+                    .clone()
+                    .idx()
+                    .ok_or(AssembleError("Range cannot be used as argument to Swap"))?;
+                let j = j
+                    .clone()
+                    .idx()
+                    .ok_or(AssembleError("Range cannot be used as argument to Swap"))?;
+                Ok(vec![Opcode::Swap as u8, i as u8, j as u8])
+            }
+            _ => unreachable!(),
+        });
     let (bytecode, errs): (Vec<Vec<u8>>, Vec<AssembleError>) = bytecode.partition_result();
     if !errs.is_empty() {
-        return Err(errs);
+        return Err(errs
+            .into_iter()
+            .fold(eyre::eyre!("Assembly errors"), |report, err| {
+                report.error(err)
+            }));
     }
     let bytecode = bytecode
         .into_iter()
@@ -78,6 +80,10 @@ pub fn assemble<'a>(
 
     Ok(bytecode)
 }
+
+#[derive(Debug, Error)]
+#[error("{0}")]
+struct AssembleError(&'static str);
 
 #[cfg(test)]
 mod tests {
