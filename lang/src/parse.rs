@@ -2,6 +2,7 @@ use std::ops::Range;
 
 use ariadne::{Color, Label, Report, ReportKind, Source};
 use chumsky::{combinator, container::Seq, prelude::*};
+use tracing::instrument;
 use variantly::Variantly;
 
 #[derive(Clone, Debug, Variantly)]
@@ -63,6 +64,7 @@ fn parser<'a>() -> impl Parser<'a, &'a str, Vec<Gtch>, extra::Err<Rich<'a, char>
     })
 }
 
+#[instrument(skip(s))]
 pub fn parse(s: &str) -> Result<Vec<Gtch>, Vec<Rich<char>>> {
     let (gtch, errs) = parser().parse(s.trim()).into_output_errors();
     println!("{:#?}", gtch);

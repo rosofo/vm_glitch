@@ -1,3 +1,4 @@
+use generate::generate;
 use nih_plug::prelude::Editor;
 use nih_plug_vizia::vizia::prelude::*;
 use nih_plug_vizia::widgets::*;
@@ -56,6 +57,9 @@ impl Model for Data {
                     }
                 };
             }
+            AppEvent::Gen => {
+                cx.emit(AppEvent::Edit(generate()));
+            }
         });
     }
 }
@@ -67,6 +71,7 @@ pub(crate) fn default_state() -> Arc<ViziaState> {
 
 enum AppEvent {
     Edit(String),
+    Gen,
 }
 
 pub(crate) fn create(
@@ -102,9 +107,17 @@ pub(crate) fn create(
                     .child_top(Stretch(1.0))
                     .child_bottom(Pixels(0.0));
 
-                Textbox::new(cx, Data::params.map(|p| p.code.lock().unwrap().clone()))
-                    .on_edit(|cx, s| cx.emit(AppEvent::Edit(s)))
-                    .min_width(Pixels(300.0));
+                HStack::new(cx, |cx| {
+                    Button::new(
+                        cx,
+                        |cx| cx.emit(AppEvent::Gen),
+                        |cx| nih_plug_vizia::vizia::views::Label::new(cx, "Generate"),
+                    );
+                    Textbox::new(cx, Data::params.map(|p| p.code.lock().unwrap().clone()))
+                        .on_edit(|cx, s| cx.emit(AppEvent::Edit(s)))
+                        .min_width(Pixels(300.0));
+                });
+
                 nih_plug_vizia::vizia::views::Label::new(cx, Data::errs).width(Pixels(300.0));
 
                 AnalyzerView::new(cx, Data::from_vm_buffer)
