@@ -24,6 +24,7 @@ impl<L1: Lens<Target = Buf>, L2: Lens<Target = (Arc<AtomicUsize>, Arc<AtomicUsiz
             .build(cx, |cx| {})
             // Redraw when lensed data changes
             .bind(bytecode, |mut handle, _| handle.needs_redraw())
+            .bind(counters, |mut handle, _| handle.needs_redraw())
     }
 }
 
@@ -41,6 +42,22 @@ impl<L1: Lens<Target = Buf>, L2: Lens<Target = (Arc<AtomicUsize>, Arc<AtomicUsiz
         let mut guard = bytecode_ref.lock().unwrap();
         let bytecode = guard.read();
 
+        canvas.clear_rect(
+            bounds.x as u32,
+            bounds.y as u32,
+            600,
+            20,
+            Color::rgb(250, 250, 200),
+        );
+        let x = bounds.x + (pc as f32 / bytecode.len() as f32) * 600.0;
+        canvas.clear_rect(
+            x as u32,
+            bounds.y as u32 + 1,
+            15,
+            19,
+            Color::rgb(20, 20, 200),
+        );
+
         let bit_scale = 8.0;
         let byte_scale = 1.5 * bit_scale;
         let coords = (0..bytecode.len()).map(|i| {
@@ -48,7 +65,7 @@ impl<L1: Lens<Target = Buf>, L2: Lens<Target = (Arc<AtomicUsize>, Arc<AtomicUsiz
             let y = i / 32;
             (
                 x as f32 * 2.0 * (byte_scale + 0.5) + bounds.x,
-                y as f32 * 2.0 * (byte_scale) + bounds.y,
+                y as f32 * 2.0 * (byte_scale) + bounds.y + 20.0,
                 bytecode[i],
             )
         });
@@ -61,7 +78,7 @@ impl<L1: Lens<Target = Buf>, L2: Lens<Target = (Arc<AtomicUsize>, Arc<AtomicUsiz
                 canvas.fill_path(&path, &paint);
             }
             for i in 0..8 {
-                let x = x + bit_scale * ((i % 4) as f32);
+                let x = x + bit_scale * 1.25 * ((i % 4) as f32);
                 let y = y + bit_scale * ((i / 4) as f32);
                 let bit = (byte >> i) & 1;
                 let mut color = if bit == 1 {
