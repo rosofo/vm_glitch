@@ -1,4 +1,6 @@
 pub mod op;
+use std::sync::{atomic::AtomicUsize, Arc};
+
 use dasp::*;
 use numquant::linear;
 use op::{Op, Opcode};
@@ -27,6 +29,7 @@ pub struct Vm {
     buf_index: usize,
     /// The total instructions/samples processed. Resets to 0 after each run.
     total_for_run: usize,
+    pub ui_counters: (Arc<AtomicUsize>, Arc<AtomicUsize>),
 }
 
 impl Vm {
@@ -40,6 +43,7 @@ impl Vm {
             && self.total_for_run <= self.max_instructions
         {
             self.step(bytecode, buf);
+            self.notify();
         }
     }
 
@@ -167,6 +171,15 @@ impl Vm {
         self.buf_index += 1;
     }
 
+    fn notify(&self) {
+        self.ui_counters
+            .0
+            .store(self.pc, std::sync::atomic::Ordering::Relaxed);
+        self.ui_counters
+            .1
+            .store(self.buf_index, std::sync::atomic::Ordering::Relaxed);
+    }
+
     /// Prepare for the next run
     fn reset(&mut self) {
         self.pc = 0;
@@ -182,6 +195,7 @@ impl Default for Vm {
             buf_index: 0,
             pc: 0,
             total_for_run: 0,
+            ui_counters: (Arc::new(AtomicUsize::new(0)), Arc::new(AtomicUsize::new(0))),
         }
     }
 }

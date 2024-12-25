@@ -3,6 +3,7 @@ use nih_plug::prelude::Editor;
 use nih_plug_vizia::vizia::prelude::*;
 use nih_plug_vizia::widgets::*;
 use nih_plug_vizia::{assets, create_vizia_editor, ViziaState, ViziaTheming};
+use std::sync::atomic::AtomicUsize;
 use std::sync::{Arc, Mutex};
 
 use crate::analyzer::AnalyzerView;
@@ -18,6 +19,7 @@ struct Data {
     from_vm_buffer: Arc<Mutex<Output<Vec<u8>>>>,
     to_vm_buffer: Arc<Mutex<Input<Vec<u8>>>>,
     errs: String,
+    counters: (Arc<AtomicUsize>, Arc<AtomicUsize>),
 }
 
 impl Model for Data {
@@ -79,6 +81,7 @@ pub(crate) fn create(
     editor_state: Arc<ViziaState>,
     from_vm_buffer: Output<Vec<u8>>,
     to_vm_buffer: Input<Vec<u8>>,
+    counters: (Arc<AtomicUsize>, Arc<AtomicUsize>),
 ) -> Option<Box<dyn Editor>> {
     // need these to be Arc<Mutex<...>> only for the UI thread, there's no blocking from the audio thread.
     let from_vm_buffer = Arc::new(Mutex::new(from_vm_buffer));
@@ -93,6 +96,7 @@ pub(crate) fn create(
             from_vm_buffer: from_vm_buffer.clone(),
             to_vm_buffer: to_vm_buffer.clone(),
             errs: "".to_string(),
+            counters: counters.clone(),
         }
         .build(cx);
 
@@ -120,11 +124,12 @@ pub(crate) fn create(
 
                 nih_plug_vizia::vizia::views::Label::new(cx, Data::errs).width(Pixels(300.0));
 
-                AnalyzerView::new(cx, Data::from_vm_buffer)
+                AnalyzerView::new(cx, Data::from_vm_buffer, Data::counters)
                     .width(Pixels(500.0))
                     .child_space(Stretch(1.0));
             })
             .row_between(Pixels(0.0))
+            .width(Stretch(1.0))
             .child_left(Stretch(1.0))
             .child_right(Stretch(1.0));
         })
