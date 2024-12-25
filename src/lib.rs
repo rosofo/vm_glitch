@@ -1,7 +1,5 @@
-mod analyzer;
 mod delay_buffer;
 mod editor;
-mod logo;
 #[cfg(feature = "tracing")]
 mod trace;
 use delay_buffer::DelayBuffer;
