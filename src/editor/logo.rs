@@ -3,31 +3,14 @@ use std::time::Instant;
 use drawille::Canvas;
 use nih_plug_vizia::vizia::prelude::*;
 
-#[derive(Lens)]
-pub struct LogoData {
-    elapsed: Duration,
-}
-#[derive(Debug)]
-enum LogoEvent {
-    Tick(Duration),
-}
-
-impl Model for LogoData {
-    fn event(&mut self, cx: &mut EventContext, event: &mut Event) {
-        event.map(|event, _| {
-            if let LogoEvent::Tick(delta) = event {
-                self.elapsed += *delta;
-            }
-        });
-    }
-}
+use super::timer::{Timer, TimerEvent};
 
 pub struct Logo {}
 
 impl Logo {
     pub fn new(cx: &mut Context) -> Handle<Self> {
         Self {}.build(cx, |cx| {
-            LogoData {
+            Timer {
                 elapsed: Default::default(),
             }
             .build(cx);
@@ -35,9 +18,9 @@ impl Logo {
                 let before = Instant::now();
                 std::thread::sleep(Duration::from_millis(100));
                 let after = Instant::now();
-                cx.emit(LogoEvent::Tick(after - before)).unwrap();
+                cx.emit(TimerEvent::Tick(after - before)).unwrap();
             });
-            Binding::new(cx, LogoData::elapsed, |cx, lens| {
+            Binding::new(cx, Timer::elapsed, |cx, lens| {
                 let text = {
                     let elapsed = lens.get(cx);
                     let mut canvas = Canvas::new(30, 30);

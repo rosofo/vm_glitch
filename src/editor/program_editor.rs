@@ -1,13 +1,19 @@
+use std::time::{Duration, Instant};
+
 use nih_plug_vizia::vizia::{
     binding::{Lens, LensExt},
     context::{Context, EmitContext},
     layout::Units::Pixels,
+    model::Model,
     modifiers::LayoutModifiers,
     view::{Handle, View},
     views::{Button, HStack, Textbox},
 };
 
-use super::{VmData, VmEvent};
+use super::{
+    timer::{Timer, TimerEvent},
+    VmData, VmEvent,
+};
 
 pub struct ProgramEdit {}
 

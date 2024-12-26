@@ -2,6 +2,11 @@ use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 use std::sync::Mutex;
 
+use super::{
+    timer::{Timer, TimerEvent},
+    VmData, VmEvent,
+};
+use dasp::ring_buffer::Fixed;
 use nih_plug_vizia::vizia::prelude::*;
 use nih_plug_vizia::vizia::vg;
 use nih_plug_vizia::vizia::vg::Color;
@@ -16,15 +21,50 @@ pub struct AnalyzerView<
     counters: L2,
 }
 
+#[derive(Lens)]
+struct Tracking {
+    pc: dasp::ring_buffer::Fixed<[usize; 32]>,
+}
+impl Model for Tracking {
+    fn event(&mut self, cx: &mut EventContext, event: &mut Event) {
+        event.map(|event, _| match event {
+            TrackingEvent::PC(pc) => {
+                self.pc.push(*pc);
+            }
+        });
+    }
+}
+enum TrackingEvent {
+    PC(usize),
+}
+
 impl<L1: Lens<Target = Buf>, L2: Lens<Target = (Arc<AtomicUsize>, Arc<AtomicUsize>)>>
     AnalyzerView<L1, L2>
 {
     pub fn new(cx: &mut Context, bytecode: L1, counters: L2) -> Handle<Self> {
+        Timer {
+            elapsed: Default::default(),
+        }
+        .build(cx);
+        Tracking {
+            pc: Fixed::from([0; 32]),
+        }
+        .build(cx);
         Self { bytecode, counters }
-            .build(cx, |cx| {})
-            // Redraw when lensed data changes
-            .bind(bytecode, |mut handle, _| handle.needs_redraw())
-            .bind(counters, |mut handle, _| handle.needs_redraw())
+            .build(cx, |cx| {
+                let pc = counters.get(cx).0.clone();
+                cx.spawn(move |cx| loop {
+                    let before = Instant::now();
+                    std::thread::sleep(Duration::from_millis(100));
+                    let after = Instant::now();
+                    cx.emit(TimerEvent::Tick(after - before)).unwrap();
+                    cx.emit(TrackingEvent::PC(
+                        pc.load(std::sync::atomic::Ordering::Relaxed),
+                    ))
+                    .unwrap();
+                });
+            })
+            .bind(Timer::elapsed, |mut handle, _| handle.needs_redraw())
     }
 }
 
@@ -35,9 +75,7 @@ impl<L1: Lens<Target = Buf>, L2: Lens<Target = (Arc<AtomicUsize>, Arc<AtomicUsiz
         let bounds = cx.bounds();
         let bytecode_ref = self.bytecode.get(cx);
 
-        let (pc, buf_index) = self.counters.get(cx);
-        let pc = pc.load(std::sync::atomic::Ordering::Relaxed);
-        let buf_index = buf_index.load(std::sync::atomic::Ordering::Relaxed);
+        let pcs = Tracking::pc.get(cx);
 
         let mut guard = bytecode_ref.lock().unwrap();
         let bytecode = guard.read();
@@ -49,14 +87,16 @@ impl<L1: Lens<Target = Buf>, L2: Lens<Target = (Arc<AtomicUsize>, Arc<AtomicUsiz
             20,
             Color::rgb(250, 250, 200),
         );
-        let x = bounds.x + (pc as f32 / bytecode.len() as f32) * 600.0;
-        canvas.clear_rect(
-            x as u32,
-            bounds.y as u32 + 1,
-            15,
-            19,
-            Color::rgb(20, 20, 200),
-        );
+        for (i, pc) in pcs.iter().enumerate() {
+            let x = bounds.x + (*pc as f32 / bytecode.len() as f32) * 600.0;
+            canvas.clear_rect(
+                x as u32,
+                bounds.y as u32 + 1,
+                15,
+                19,
+                Color::rgb(20, 20, 100 + (i as f32 / 32.0) as u8),
+            );
+        }
 
         let bit_scale = 8.0;
         let byte_scale = 1.5 * bit_scale;
@@ -70,13 +110,6 @@ impl<L1: Lens<Target = Buf>, L2: Lens<Target = (Arc<AtomicUsize>, Arc<AtomicUsiz
             )
         });
         for (byte_idx, (x, y, byte)) in coords.enumerate() {
-            if byte_idx == pc {
-                let mut path = vg::Path::new();
-                path.rect(x - 2.0, y - 2.0, byte_scale + 2.0, byte_scale + 2.0);
-                let mut paint = vg::Paint::default();
-                paint.set_color(Color::rgb(0, 0, 255));
-                canvas.fill_path(&path, &paint);
-            }
             for i in 0..8 {
                 let x = x + bit_scale * 1.25 * ((i % 4) as f32);
                 let y = y + bit_scale * ((i / 4) as f32);
@@ -86,9 +119,6 @@ impl<L1: Lens<Target = Buf>, L2: Lens<Target = (Arc<AtomicUsize>, Arc<AtomicUsiz
                 } else {
                     Color::rgb(92, 65, 93)
                 };
-                if byte_idx == pc {
-                    color.b += 0.5;
-                }
                 let mut path = vg::Path::new();
                 path.rect(x, y, bit_scale, bit_scale);
                 let mut paint = vg::Paint::default();

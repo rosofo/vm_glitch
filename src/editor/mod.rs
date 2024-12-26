@@ -1,6 +1,7 @@
 mod analyzer;
 mod logo;
 mod program_editor;
+mod timer;
 use generate::generate;
 use nih_plug::prelude::Editor;
 use nih_plug_vizia::vizia::prelude::*;
