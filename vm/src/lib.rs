@@ -1,4 +1,7 @@
+pub mod bus;
+pub mod modules;
 pub mod op;
+pub mod runtime;
 use std::sync::{atomic::AtomicUsize, Arc};
 
 use dasp::*;
