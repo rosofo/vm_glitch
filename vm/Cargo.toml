@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+chute = "0.2.1"
 dasp = { workspace = true }
 itertools = "0.13.0"
 numquant = "0.2.0"
