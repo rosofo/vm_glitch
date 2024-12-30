@@ -15,31 +15,29 @@ pub type RawBuffer<'a> = &'a mut Fixed<Vec<[f32; 2]>>;
 const REGISTER_COUNT: usize = 16;
 
 #[derive(Clone, Debug)]
-pub struct Vm<B> {
+pub struct Vm {
     /// The maximum number of instructions to run.
     ///
     /// When this is reached the VM will halt early to avoid ever blocking/hanging the audio thread.
     max_instructions: usize,
     state: VmState,
     pub ui_counters: (Arc<AtomicUsize>, Arc<AtomicUsize>),
-    /// Responsible for performing the actual operations
-    backend: B,
 }
 
-impl<B: Backend> Vm<B> {
+impl Vm {
     /// Run the Vm's current bytecode.
     ///
     /// Modifies the audio buffer and the bytecode simultaneously.
-    pub fn run(&mut self, bytecode: &mut [u8], self_modify: bool) {
+    pub fn run<B: Backend>(&mut self, bytecode: &mut [u8], backend: &mut B, self_modify: bool) {
         self.reset();
         while self.state.pc < bytecode.len() && self.state.total_for_run <= self.max_instructions {
-            self.step(bytecode, self_modify);
+            self.step(bytecode, backend, self_modify);
             self.notify();
         }
     }
 
-    #[instrument(skip(self, bytecode))]
-    fn step(&mut self, bytecode: &mut [u8], self_modify: bool) {
+    #[instrument(skip(self, bytecode, backend))]
+    fn step<B: Backend>(&mut self, bytecode: &mut [u8], backend: &mut B, self_modify: bool) {
         #[cfg(feature = "tracing")]
         {
             tracy_client::plot!("PC", self.state.pc as f64);
@@ -49,7 +47,7 @@ impl<B: Backend> Vm<B> {
 
         let op = self.parse_op(bytecode, REGISTER_COUNT);
         if let Some(op) = op {
-            self.run_op(op, bytecode, self_modify);
+            self.run_op(op, bytecode, backend, self_modify);
         }
 
         self.increment()
@@ -90,8 +88,14 @@ impl<B: Backend> Vm<B> {
         None
     }
 
-    #[instrument(skip(self, bytecode))]
-    fn run_op(&mut self, op: Op, bytecode: &mut [u8], self_modify: bool) {
+    #[instrument(skip(self, bytecode, backend))]
+    fn run_op<B: Backend>(
+        &mut self,
+        op: Op,
+        bytecode: &mut [u8],
+        backend: &mut B,
+        self_modify: bool,
+    ) {
         let chunk_size_bytecode = bytecode.len() / REGISTER_COUNT;
         match op {
             Op::Copy(from_idx, to_idx) => {
@@ -103,18 +107,18 @@ impl<B: Backend> Vm<B> {
                     let chunk_end = chunk_start + chunk_size_bytecode;
                     bytecode.copy_within(chunk_start..chunk_end, to_idx * chunk_size_bytecode);
                 }
-                self.backend.run(Op::Copy(from_idx, to_idx), &self.state);
+                backend.run(bytecode, Op::Copy(from_idx, to_idx), &self.state);
             }
             Op::Jump(i) => {
                 self.state.pc = i;
                 #[cfg(feature = "tracing")]
                 tracy_client::plot!("Op::Jump", 1.0);
-                self.backend.run(Op::Jump(i), &self.state);
+                backend.run(bytecode, Op::Jump(i), &self.state);
             }
             Op::Sample(i) => {
                 #[cfg(feature = "tracing")]
                 tracy_client::plot!("Op::Sample", 1.0);
-                self.backend.run(Op::Sample(i), &self.state);
+                backend.run(bytecode, Op::Sample(i), &self.state);
             }
             Op::Swap(i, j) => {
                 if self_modify {
@@ -127,7 +131,7 @@ impl<B: Backend> Vm<B> {
                 }
                 #[cfg(feature = "tracing")]
                 tracy_client::plot!("Op::Swap", 1.0);
-                self.backend.run(Op::Swap(i, j), &self.state);
+                backend.run(bytecode, Op::Swap(i, j), &self.state);
             }
             _ => {}
         }
@@ -156,13 +160,12 @@ impl<B: Backend> Vm<B> {
     }
 }
 
-impl<B: Backend + Default> Default for Vm<B> {
+impl Default for Vm {
     fn default() -> Self {
         Self {
             max_instructions: 512,
             state: VmState::default(),
             ui_counters: (Arc::new(AtomicUsize::new(0)), Arc::new(AtomicUsize::new(0))),
-            backend: B::default(),
         }
     }
 }

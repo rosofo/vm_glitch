@@ -11,7 +11,8 @@ use std::{
 };
 use tracing::{instrument, trace};
 use triple_buffer::{triple_buffer, Input, Output};
-use vm::Vm;
+use vm::backend::Backend;
+use vm::interpret::Vm;
 
 pub type BytecodeUpdates = Vec<u8>;
 
@@ -171,8 +172,9 @@ impl Plugin for VmGlitch {
 
         self.delay_buffer.ingest_audio(buffer);
 
+        // run vm on audio without bytecode self-mod
         self.vm
-            .run(&mut self.bytecode, &mut self.delay_buffer.buffer);
+            .run(&mut self.bytecode, &mut self.delay_buffer.buffer, false);
 
         self.delay_buffer.write_to_audio(buffer);
 
