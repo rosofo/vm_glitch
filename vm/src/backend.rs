@@ -27,7 +27,7 @@ impl Backend for ring_buffer::Fixed<Vec<[f32; 2]>> {
                     to_frame[1] = from_frame[1];
 
                     #[cfg(feature = "tracing")]
-                    tracy_client::plot!("Op::Copy", 1.0);
+                    tracy_client::plot!("audio Op::Copy", 1.0);
                 }
             }
             Op::Sample(i) => {
@@ -36,7 +36,7 @@ impl Backend for ring_buffer::Fixed<Vec<[f32; 2]>> {
                 sample /= self.len() as f32;
                 bytecode[vm_state.pc] = linear::quantize(sample as f64, -1.0..1.0, 255);
                 #[cfg(feature = "tracing")]
-                tracy_client::plot!("Op::Sample", 1.0);
+                tracy_client::plot!("audio Op::Sample", 1.0);
             }
             Op::Swap(i, j) => {
                 for offset in 0..chunk_size_audio {
@@ -51,7 +51,7 @@ impl Backend for ring_buffer::Fixed<Vec<[f32; 2]>> {
                 }
 
                 #[cfg(feature = "tracing")]
-                tracy_client::plot!("Op::Swap", 1.0);
+                tracy_client::plot!("audio Op::Swap", 1.0);
             }
             _ => {}
         }

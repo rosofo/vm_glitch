@@ -100,9 +100,8 @@ impl Vm {
         match op {
             Op::Copy(from_idx, to_idx) => {
                 #[cfg(feature = "tracing")]
-                tracy_client::plot!("Op::Copy", 1.0);
-
                 if self_modify {
+                    tracy_client::plot!("bytecode Op::Copy", 1.0);
                     let chunk_start = from_idx * chunk_size_bytecode;
                     let chunk_end = chunk_start + chunk_size_bytecode;
                     bytecode.copy_within(chunk_start..chunk_end, to_idx * chunk_size_bytecode);
@@ -116,8 +115,6 @@ impl Vm {
                 backend.run(bytecode, Op::Jump(i), &self.state);
             }
             Op::Sample(i) => {
-                #[cfg(feature = "tracing")]
-                tracy_client::plot!("Op::Sample", 1.0);
                 backend.run(bytecode, Op::Sample(i), &self.state);
             }
             Op::Swap(i, j) => {
@@ -128,9 +125,9 @@ impl Vm {
                             (j * chunk_size_bytecode) + offset,
                         );
                     }
+                    #[cfg(feature = "tracing")]
+                    tracy_client::plot!("bytecode Op::Swap", 1.0);
                 }
-                #[cfg(feature = "tracing")]
-                tracy_client::plot!("Op::Swap", 1.0);
                 backend.run(bytecode, Op::Swap(i, j), &self.state);
             }
             _ => {}

@@ -691,6 +691,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "branch_hints"
+version = "0.4.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "563f5c490d4067ffedc27856627e2c04f3657ef84d7889590e76f544ef96d797"
+
+[[package]]
 name = "bumpalo"
 version = "3.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -838,6 +844,15 @@ dependencies = [
  "serde",
  "stacker",
  "unicode-ident",
+]
+
+[[package]]
+name = "chute"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d239a0bc520a9a0c536e4b5436d476f8362aa40998b86d54ee3b97de7d48ef02"
+dependencies = [
+ "branch_hints",
 ]
 
 [[package]]
@@ -4554,6 +4569,7 @@ name = "vm_glitch"
 version = "0.1.0"
 dependencies = [
  "atomic_float 1.1.0",
+ "chute",
  "dasp",
  "derive_more 1.0.0",
  "drawille",

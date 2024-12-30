@@ -1,13 +1,19 @@
 use std::thread::spawn;
 
+use chute::{spmc, LendingReader};
 use tracing::trace;
 use triple_buffer::{triple_buffer, Input, Output};
 use vm::{backend::NoopBackend, interpret::Vm};
+
+pub enum Message {
+    ModBytecode,
+}
 
 pub struct BytecodeThread {
     bytecode: Vec<u8>,
     vm: Vm,
     size: usize,
+    rx: spmc::Reader<Message>,
 }
 pub struct BytecodeComms {
     pub bc_in: Input<Vec<u8>>,
@@ -17,11 +23,12 @@ pub struct BytecodeComms {
 }
 
 impl BytecodeThread {
-    pub fn new(size: usize) -> Self {
+    pub fn new(size: usize, msgs: spmc::Reader<Message>) -> Self {
         Self {
             bytecode: vec![0u8; size],
             vm: Vm::default(),
             size,
+            rx: msgs,
         }
     }
     pub fn spawn(mut self) -> BytecodeComms {
@@ -35,7 +42,10 @@ impl BytecodeThread {
                 let latest_ui_bytecode = from_ui_out.read();
                 self.bytecode.copy_from_slice(latest_ui_bytecode.as_slice());
             }
-            self.vm.run(&mut self.bytecode, &mut NoopBackend, true);
+            // non-blocking recv
+            if let Some(Message::ModBytecode) = self.rx.next() {
+                self.vm.run(&mut self.bytecode, &mut NoopBackend, true);
+            }
             to_ui_in.input_buffer().copy_from_slice(&self.bytecode);
             to_ui_in.publish();
             to_audio_in.input_buffer().copy_from_slice(&self.bytecode);

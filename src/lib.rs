@@ -3,11 +3,14 @@ mod editor;
 mod threads;
 #[cfg(feature = "tracing")]
 mod trace;
+use chute::spmc;
 use delay_buffer::DelayBuffer;
 use nih_plug::prelude::*;
 use nih_plug_vizia::ViziaState;
 use std::{
     sync::{Arc, Mutex},
+    thread::{self, spawn},
+    time::Duration,
     vec,
 };
 use threads::{BytecodeComms, BytecodeThread};
@@ -23,8 +26,6 @@ pub struct VmGlitch {
     #[debug(ignore)]
     params: Arc<VmGlitchParams>,
     vm: Vm,
-    to_ui_buffer: (Input<Vec<u8>>, Option<Output<Vec<u8>>>),
-    from_ui_buffer: (Option<Input<BytecodeUpdates>>, Output<BytecodeUpdates>),
     delay_buffer: DelayBuffer,
     bytecode: Option<Output<Vec<u8>>>,
 }
@@ -56,8 +57,6 @@ impl Default for VmGlitch {
         Self {
             params: Arc::new(VmGlitchParams::default()),
             vm: Vm::default(),
-            to_ui_buffer: (to_ui.0, Some(to_ui.1)),
-            from_ui_buffer: (Some(from_ui.0), from_ui.1),
             delay_buffer: DelayBuffer::new(8192),
             bytecode: None,
         }
@@ -165,6 +164,7 @@ impl Plugin for VmGlitch {
         self.delay_buffer.ingest_audio(buffer);
 
         if let Some(bytecode) = self.bytecode.as_mut() {
+            bytecode.update();
             // run vm on audio without bytecode self-mod
             self.vm.run(
                 bytecode.output_buffer(),
@@ -175,15 +175,6 @@ impl Plugin for VmGlitch {
 
         self.delay_buffer.write_to_audio(buffer);
 
-        if let Some(bytecode) = self.bytecode.as_ref() {
-            trace!("audio->UI bytecode update");
-            self.to_ui_buffer
-                .0
-                .input_buffer()
-                .copy_from_slice(bytecode.peek_output_buffer());
-            self.to_ui_buffer.0.publish();
-        }
-
         #[cfg(feature = "tracing")]
         tracy_client::Client::running().unwrap().frame_mark();
 
@@ -191,12 +182,18 @@ impl Plugin for VmGlitch {
     }
 
     fn editor(&mut self, _async_executor: AsyncExecutor<Self>) -> Option<Box<dyn Editor>> {
+        let mut msgs = spmc::Queue::new();
+        let reader = msgs.reader();
+        spawn(move || loop {
+            msgs.push(threads::Message::ModBytecode);
+            thread::sleep(Duration::from_secs_f32(0.5));
+        });
         let BytecodeComms {
             bc_in,
             ui_out,
             audio_out,
             video_out,
-        } = BytecodeThread::new(512).spawn();
+        } = BytecodeThread::new(512, reader).spawn();
         self.bytecode = Some(audio_out);
         editor::create(
             self.params.clone(),
