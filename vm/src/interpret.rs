@@ -77,6 +77,10 @@ impl Vm {
             if byte == Opcode::Jump as u8 {
                 self.state.pc += 1;
                 return Some(Op::Jump(i));
+            } else if byte == Opcode::CopyFromSelf as u8 {
+                let pc = self.state.pc;
+                self.state.pc += 1;
+                return Some(Op::Copy(pc, i));
             } else if byte == Opcode::Flip as u8 {
                 self.state.pc += 1;
                 return Some(Op::Flip(i));

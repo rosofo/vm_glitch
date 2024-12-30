@@ -9,6 +9,7 @@ use variantly::Variantly;
 pub enum Atom {
     Idx(usize),
     Range(Range<usize>),
+    PC,
 }
 
 #[derive(Clone, Debug, Variantly)]
@@ -30,19 +31,22 @@ fn parser<'a>() -> impl Parser<'a, &'a str, Vec<Gtch>, extra::Err<Rich<'a, char>
             .then(text::int(10))
             .map(|(x, y): (&str, &str)| Atom::Range(x.parse().unwrap()..y.parse().unwrap()));
         let idx = text::int(10).map(|i: &str| Atom::Idx(i.parse().unwrap()));
+        let pc = just("i").to(Atom::PC);
 
-        let atom = choice((range, idx));
+        let atom = choice((range, idx, pc));
 
         let copy = atom
+            .clone()
             .then_ignore(just(">"))
-            .then(atom)
+            .then(atom.clone())
             .map(|(a1, a2)| Gtch::Copy(a1, a2));
 
-        let jump = just(".").ignore_then(atom).map(Gtch::Jump);
+        let jump = just(".").ignore_then(atom.clone()).map(Gtch::Jump);
 
-        let sample = just("~").ignore_then(atom).map(Gtch::Sample);
+        let sample = just("~").ignore_then(atom.clone()).map(Gtch::Sample);
 
         let swap = atom
+            .clone()
             .then_ignore(just("<>"))
             .then(atom)
             .map(|(a1, a2)| Gtch::Swap(a1, a2));

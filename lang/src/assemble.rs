@@ -36,6 +36,7 @@ pub fn assemble<'a>(
                             .flat_map(|(i, k)| vec![Opcode::Copy as u8, k as u8, j as u8 + i as u8])
                             .collect_vec()
                     }
+                    Atom::PC => vec![Opcode::CopyFromSelf as u8, j as u8],
                 })
             }
             Gtch::Jump(i) => {
