@@ -33,7 +33,7 @@ tracing-subscriber = { workspace = true, optional = true }
 tracing-tracy = { workspace = true, optional = true }
 tracy-client = { workspace = true, optional = true }
 derive_more = { version = "1.0.0", features = ["debug"] }
-chute = "0.2.1"
+crossbeam-channel = "0.5.14"
 
 [features]
 tracing = ["dep:tracing-subscriber", "dep:tracing-tracy", "dep:tracy-client", "vm/tracing" ]
