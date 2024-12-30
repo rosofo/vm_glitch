@@ -63,30 +63,26 @@ impl Vm {
             let j = *bytecode.get(self.state.pc + 1)? as usize;
             self.state.pc += 1;
 
-            if i >= registers || j >= registers {
-                return None;
-            }
-
             if byte == Opcode::Swap as u8 {
-                return Some(Op::Swap(i, j));
+                return Some(Op::Swap(i % REGISTER_COUNT, j % REGISTER_COUNT));
             } else {
-                return Some(Op::Copy(i, j));
+                return Some(Op::Copy(i % REGISTER_COUNT, j % REGISTER_COUNT));
             }
         } else {
             let i = *bytecode.get(self.state.pc + 1)? as usize;
             if byte == Opcode::Jump as u8 {
                 self.state.pc += 1;
-                return Some(Op::Jump(i));
+                return Some(Op::Jump(i % REGISTER_COUNT));
             } else if byte == Opcode::CopyFromSelf as u8 {
                 let pc = self.state.pc;
                 self.state.pc += 1;
-                return Some(Op::Copy(pc, i));
+                return Some(Op::Copy(pc % REGISTER_COUNT, i % REGISTER_COUNT));
             } else if byte == Opcode::Flip as u8 {
                 self.state.pc += 1;
-                return Some(Op::Flip(i));
+                return Some(Op::Flip(i % REGISTER_COUNT));
             } else if byte == Opcode::Sample as u8 {
                 self.state.pc += 1;
-                return Some(Op::Sample(i));
+                return Some(Op::Sample(i % REGISTER_COUNT));
             }
         }
         None

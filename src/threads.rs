@@ -36,22 +36,26 @@ impl BytecodeThread {
         let (mut to_ui_in, to_ui_out) = triple_buffer(&vec![0u8; self.size]);
         let (mut to_audio_in, to_audio_out) = triple_buffer(&vec![0u8; self.size]);
         let (mut to_video_in, to_video_out) = triple_buffer(&vec![0u8; self.size]);
-        spawn(move || loop {
-            if from_ui_out.updated() {
-                trace!("UI->audio bytecode update");
-                let latest_ui_bytecode = from_ui_out.read();
-                self.bytecode.copy_from_slice(latest_ui_bytecode.as_slice());
+        spawn(move || {
+            tracy_client::set_thread_name!("bytecode mut loop");
+            loop {
+                if from_ui_out.updated() {
+                    trace!("UI->audio bytecode update");
+                    let latest_ui_bytecode = from_ui_out.read();
+                    self.bytecode.copy_from_slice(latest_ui_bytecode.as_slice());
+                }
+                // non-blocking recv
+                if let Some(Message::ModBytecode) = self.rx.next() {
+                    trace!("bytecode mod run");
+                    self.vm.run(&mut self.bytecode, &mut NoopBackend, true);
+                }
+                to_ui_in.input_buffer().copy_from_slice(&self.bytecode);
+                to_ui_in.publish();
+                to_audio_in.input_buffer().copy_from_slice(&self.bytecode);
+                to_audio_in.publish();
+                to_video_in.input_buffer().copy_from_slice(&self.bytecode);
+                to_video_in.publish();
             }
-            // non-blocking recv
-            if let Some(Message::ModBytecode) = self.rx.next() {
-                self.vm.run(&mut self.bytecode, &mut NoopBackend, true);
-            }
-            to_ui_in.input_buffer().copy_from_slice(&self.bytecode);
-            to_ui_in.publish();
-            to_audio_in.input_buffer().copy_from_slice(&self.bytecode);
-            to_audio_in.publish();
-            to_video_in.input_buffer().copy_from_slice(&self.bytecode);
-            to_video_in.publish();
         });
 
         BytecodeComms {
