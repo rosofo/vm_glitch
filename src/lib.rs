@@ -1,5 +1,6 @@
 mod delay_buffer;
 mod editor;
+mod threads;
 #[cfg(feature = "tracing")]
 mod trace;
 use delay_buffer::DelayBuffer;
@@ -7,8 +8,11 @@ use nih_plug::prelude::*;
 use nih_plug_vizia::ViziaState;
 use std::{
     sync::{Arc, Mutex},
+    thread::{self, spawn},
+    time::Duration,
     vec,
 };
+use threads::{BytecodeComms, BytecodeThread};
 use tracing::{instrument, trace};
 use triple_buffer::{triple_buffer, Input, Output};
 use vm::backend::Backend;
@@ -21,10 +25,9 @@ pub struct VmGlitch {
     #[debug(ignore)]
     params: Arc<VmGlitchParams>,
     vm: Vm,
-    to_ui_buffer: (Input<Vec<u8>>, Option<Output<Vec<u8>>>),
-    from_ui_buffer: (Option<Input<BytecodeUpdates>>, Output<BytecodeUpdates>),
     delay_buffer: DelayBuffer,
-    bytecode: Vec<u8>,
+    bytecode: Option<Output<Vec<u8>>>,
+    bytecode_rate: Arc<AtomicF32>,
 }
 
 #[derive(Params)]
@@ -33,8 +36,8 @@ pub struct VmGlitchParams {
     /// these IDs remain constant, you can rename and reorder these fields as you wish. The
     /// parameters are exposed to the host in the same order they were defined. In this case, this
     /// gain parameter is stored as linear gain while the values are displayed in decibels.
-    #[id = "gain"]
-    pub gain: FloatParam,
+    #[id = "bytecode_rate"]
+    pub bytecode_rate: FloatParam,
 
     #[persist = "editor-state"]
     pub editor_state: Arc<ViziaState>,
@@ -54,10 +57,9 @@ impl Default for VmGlitch {
         Self {
             params: Arc::new(VmGlitchParams::default()),
             vm: Vm::default(),
-            to_ui_buffer: (to_ui.0, Some(to_ui.1)),
-            from_ui_buffer: (Some(from_ui.0), from_ui.1),
             delay_buffer: DelayBuffer::new(8192),
-            bytecode: vec![0; 512],
+            bytecode: None,
+            bytecode_rate: Arc::new(AtomicF32::new(0.5)),
         }
     }
 }
@@ -68,29 +70,15 @@ impl Default for VmGlitchParams {
             editor_state: editor::default_state(),
             code: Default::default(),
 
-            // This gain is stored as linear gain. NIH-plug comes with useful conversion functions
-            // to treat these kinds of parameters as if we were dealing with decibels. Storing this
-            // as decibels is easier to work with, but requires a conversion for every sample.
-            gain: FloatParam::new(
-                "Gain",
-                util::db_to_gain(0.0),
-                FloatRange::Skewed {
-                    min: util::db_to_gain(-30.0),
-                    max: util::db_to_gain(30.0),
-                    // This makes the range appear as if it was linear when displaying the values as
-                    // decibels
-                    factor: FloatRange::gain_skew_factor(-30.0, 30.0),
+            bytecode_rate: FloatParam::new(
+                "Bytecode Rate",
+                0.5,
+                FloatRange::Linear {
+                    min: 0.0,
+                    max: 10.0,
                 },
             )
-            // Because the gain parameter is stored as linear gain instead of storing the value as
-            // decibels, we need logarithmic smoothing
-            .with_smoother(SmoothingStyle::Logarithmic(50.0))
-            .with_unit(" dB")
-            // There are many predefined formatters we can use here. If the gain was stored as
-            // decibels instead of as a linear gain value, we could have also used the
-            // `.with_step_size(0.1)` function to get internal rounding.
-            .with_value_to_string(formatters::v2s_f32_gain_to_db(2))
-            .with_string_to_value(formatters::s2v_f32_gain_to_db()),
+            .with_unit(" secs"),
         }
     }
 }
@@ -160,43 +148,52 @@ impl Plugin for VmGlitch {
         _aux: &mut AuxiliaryBuffers,
         _context: &mut impl ProcessContext<Self>,
     ) -> ProcessStatus {
-        // TODO decide whether to just get updates from the UI thread periodically, e.g. every X calls.
-        // Would be less complex, though it would mean the bytecode gets reset regardless of whether the user edited it.
-
-        // using `updated` because the warning from its docs doesn't apply here. We are already 'spinning'.
-        if self.from_ui_buffer.1.updated() {
-            trace!("UI->audio bytecode update");
-            let latest_ui_bytecode = self.from_ui_buffer.1.read();
-            self.bytecode.copy_from_slice(latest_ui_bytecode.as_slice());
-        }
-
         self.delay_buffer.ingest_audio(buffer);
 
-        // run vm on audio without bytecode self-mod
-        self.vm
-            .run(&mut self.bytecode, &mut self.delay_buffer.buffer, false);
+        if let Some(bytecode) = self.bytecode.as_mut() {
+            bytecode.update();
+            // run vm on audio without bytecode self-mod
+            self.vm.run(
+                bytecode.output_buffer(),
+                &mut self.delay_buffer.buffer,
+                false,
+            );
+        }
 
         self.delay_buffer.write_to_audio(buffer);
 
-        trace!("audio->UI bytecode update");
-        self.to_ui_buffer
-            .0
-            .input_buffer()
-            .copy_from_slice(&self.bytecode);
-        self.to_ui_buffer.0.publish();
-
         #[cfg(feature = "tracing")]
         tracy_client::Client::running().unwrap().frame_mark();
+
+        self.bytecode_rate.store(
+            self.params.bytecode_rate.value(),
+            std::sync::atomic::Ordering::Relaxed,
+        );
 
         ProcessStatus::Normal
     }
 
     fn editor(&mut self, _async_executor: AsyncExecutor<Self>) -> Option<Box<dyn Editor>> {
+        let (tx, rx) = crossbeam_channel::bounded(100);
+        let rate = Arc::clone(&self.bytecode_rate);
+        spawn(move || loop {
+            tx.send(threads::Message::ModBytecode).unwrap();
+            thread::sleep(Duration::from_secs_f32(
+                rate.load(std::sync::atomic::Ordering::Relaxed),
+            ));
+        });
+        let BytecodeComms {
+            bc_in,
+            ui_out,
+            audio_out,
+            video_out,
+        } = BytecodeThread::new(512, rx).spawn();
+        self.bytecode = Some(audio_out);
         editor::create(
             self.params.clone(),
             self.params.editor_state.clone(),
-            self.to_ui_buffer.1.take().unwrap(),
-            self.from_ui_buffer.0.take().unwrap(),
+            ui_out,
+            bc_in,
             self.vm.ui_counters.clone(),
         )
     }

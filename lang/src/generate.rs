@@ -19,6 +19,7 @@ fn gen_children(recurse: bool) -> String {
                 thread_rng().gen_range(0..256)
             )
         }),
+        Box::new(|| format!("i>{}", thread_rng().gen_range(0..256),)),
         Box::new(|| {
             format!(
                 "{}<>{}",

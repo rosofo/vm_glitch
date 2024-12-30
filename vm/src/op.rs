@@ -4,6 +4,8 @@ pub enum Opcode {
     Noop,
     /// Copy from `i` to `j` in both the bytecode and the audio buffer
     Copy,
+    /// Copy from `pc` to `j` in both the bytecode and the audio buffer
+    CopyFromSelf,
     /// Flip the data at `i`. For the bytecode this is a binary NOT, for samples this is `1 - sample`
     Flip,
     /// Jump from `i` to `j`. For the bytecode this changes the PC, for the buffer it causes an audible skip
