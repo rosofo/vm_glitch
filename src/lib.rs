@@ -1,5 +1,6 @@
 mod delay_buffer;
 mod editor;
+mod threads;
 #[cfg(feature = "tracing")]
 mod trace;
 use delay_buffer::DelayBuffer;
@@ -9,6 +10,7 @@ use std::{
     sync::{Arc, Mutex},
     vec,
 };
+use threads::{BytecodeComms, BytecodeThread};
 use tracing::{instrument, trace};
 use triple_buffer::{triple_buffer, Input, Output};
 use vm::backend::Backend;
@@ -24,7 +26,7 @@ pub struct VmGlitch {
     to_ui_buffer: (Input<Vec<u8>>, Option<Output<Vec<u8>>>),
     from_ui_buffer: (Option<Input<BytecodeUpdates>>, Output<BytecodeUpdates>),
     delay_buffer: DelayBuffer,
-    bytecode: Vec<u8>,
+    bytecode: Option<Output<Vec<u8>>>,
 }
 
 #[derive(Params)]
@@ -57,7 +59,7 @@ impl Default for VmGlitch {
             to_ui_buffer: (to_ui.0, Some(to_ui.1)),
             from_ui_buffer: (Some(from_ui.0), from_ui.1),
             delay_buffer: DelayBuffer::new(8192),
-            bytecode: vec![0; 512],
+            bytecode: None,
         }
     }
 }
@@ -160,30 +162,27 @@ impl Plugin for VmGlitch {
         _aux: &mut AuxiliaryBuffers,
         _context: &mut impl ProcessContext<Self>,
     ) -> ProcessStatus {
-        // TODO decide whether to just get updates from the UI thread periodically, e.g. every X calls.
-        // Would be less complex, though it would mean the bytecode gets reset regardless of whether the user edited it.
-
-        // using `updated` because the warning from its docs doesn't apply here. We are already 'spinning'.
-        if self.from_ui_buffer.1.updated() {
-            trace!("UI->audio bytecode update");
-            let latest_ui_bytecode = self.from_ui_buffer.1.read();
-            self.bytecode.copy_from_slice(latest_ui_bytecode.as_slice());
-        }
-
         self.delay_buffer.ingest_audio(buffer);
 
-        // run vm on audio without bytecode self-mod
-        self.vm
-            .run(&mut self.bytecode, &mut self.delay_buffer.buffer, false);
+        if let Some(bytecode) = self.bytecode.as_mut() {
+            // run vm on audio without bytecode self-mod
+            self.vm.run(
+                bytecode.output_buffer(),
+                &mut self.delay_buffer.buffer,
+                false,
+            );
+        }
 
         self.delay_buffer.write_to_audio(buffer);
 
-        trace!("audio->UI bytecode update");
-        self.to_ui_buffer
-            .0
-            .input_buffer()
-            .copy_from_slice(&self.bytecode);
-        self.to_ui_buffer.0.publish();
+        if let Some(bytecode) = self.bytecode.as_ref() {
+            trace!("audio->UI bytecode update");
+            self.to_ui_buffer
+                .0
+                .input_buffer()
+                .copy_from_slice(bytecode.peek_output_buffer());
+            self.to_ui_buffer.0.publish();
+        }
 
         #[cfg(feature = "tracing")]
         tracy_client::Client::running().unwrap().frame_mark();
@@ -192,11 +191,18 @@ impl Plugin for VmGlitch {
     }
 
     fn editor(&mut self, _async_executor: AsyncExecutor<Self>) -> Option<Box<dyn Editor>> {
+        let BytecodeComms {
+            bc_in,
+            ui_out,
+            audio_out,
+            video_out,
+        } = BytecodeThread::new(512).spawn();
+        self.bytecode = Some(audio_out);
         editor::create(
             self.params.clone(),
             self.params.editor_state.clone(),
-            self.to_ui_buffer.1.take().unwrap(),
-            self.from_ui_buffer.0.take().unwrap(),
+            ui_out,
+            bc_in,
             self.vm.ui_counters.clone(),
         )
     }
