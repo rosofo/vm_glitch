@@ -8,7 +8,7 @@ homepage = "https://sandiskette.com"
 description = "Manipulate audio with a fool-vulnerable DSL"
 
 [workspace]
-members = [ "lang", "vm","xtask"]
+members = [ "lang", "processor", "vm", "xtask" ]
 
 [lib]
 crate-type = ["cdylib", "lib"]
